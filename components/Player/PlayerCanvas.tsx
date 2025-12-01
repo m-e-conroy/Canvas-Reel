@@ -51,9 +51,10 @@ export const PlayerCanvas: React.FC = () => {
 
   // Sync Logic: Decides what each media element should be doing
   const syncMedia = (time: number, playing: boolean, currentTracks: Track[], currentAssets: Asset[]) => {
-      const assetStates = new Map<string, { shouldPlay: boolean, time: number, volume: number }>();
+      // Stores state for each asset: play/pause, time, volume, playbackRate
+      const assetStates = new Map<string, { shouldPlay: boolean, time: number, volume: number, playbackRate: number }>();
       
-      currentAssets.forEach(a => assetStates.set(a.id, { shouldPlay: false, time: 0, volume: 0 }));
+      currentAssets.forEach(a => assetStates.set(a.id, { shouldPlay: false, time: 0, volume: 0, playbackRate: 1 }));
 
       currentTracks.forEach(track => {
           if (track.isHidden) return;
@@ -63,12 +64,14 @@ export const PlayerCanvas: React.FC = () => {
 
              if (time >= clip.startTime && time < clip.startTime + clip.duration) {
                  const clipOffset = time - clip.startTime;
-                 const sourceTime = clip.startOffset + clipOffset;
+                 const speed = clip.speed ?? 1;
+                 const sourceTime = clip.startOffset + (clipOffset * speed);
                  
                  assetStates.set(clip.assetId, { 
                      shouldPlay: playing, 
                      time: sourceTime, 
-                     volume: (track.isMuted || clip.muted) ? 0 : 1 
+                     volume: (track.isMuted || clip.muted) ? 0 : 1,
+                     playbackRate: speed
                  });
              }
           });
@@ -80,9 +83,14 @@ export const PlayerCanvas: React.FC = () => {
 
           if (media instanceof HTMLVideoElement || media instanceof HTMLAudioElement) {
               media.volume = state.volume;
+              media.playbackRate = state.playbackRate;
+              
               if (state.shouldPlay) {
                   const drift = Math.abs(media.currentTime - state.time);
-                  if (media.paused || drift > 0.3) {
+                  // Allow slightly larger drift tolerance when speeding up
+                  const tolerance = 0.3 * Math.max(1, state.playbackRate);
+                  
+                  if (media.paused || drift > tolerance) {
                       if (Number.isFinite(state.time)) {
                           media.currentTime = state.time;
                       }

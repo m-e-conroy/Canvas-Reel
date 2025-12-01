@@ -46,6 +46,9 @@ export interface Clip {
   color?: string; // Hex code for custom clip color
   groupId?: string; // ID for grouping multiple clips together
   
+  // Speed Control
+  speed?: number; // Playback rate multiplier (default 1.0)
+
   // Visibility & Audio
   muted?: boolean;
   visible?: boolean;

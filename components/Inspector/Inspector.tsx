@@ -561,6 +561,33 @@ export const Inspector: React.FC = () => {
         {/* --- Timing --- */}
         <div>
             <h3 className="text-xs font-bold text-gray-400 mb-3 border-b border-gray-800 pb-1">Timing</h3>
+            
+            {/* Speed Control */}
+            <div className="mb-3">
+                 <label className="block text-xs text-gray-500 mb-1">Speed</label>
+                 <div className="flex items-center gap-2">
+                     <input 
+                        type="range"
+                        min={0.25}
+                        max={4}
+                        step={0.25}
+                        value={clip.speed ?? 1}
+                        onChange={(e) => {
+                            const newSpeed = parseFloat(e.target.value);
+                            const currentSpeed = clip.speed ?? 1;
+                            // Preserve content range: (duration * speed) = constant content length
+                            // newDuration = (oldDuration * oldSpeed) / newSpeed
+                            const newDuration = (clip.duration * currentSpeed) / newSpeed;
+                            updateClip(clip.id, { speed: newSpeed, duration: newDuration });
+                        }}
+                        className="flex-1 h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                     />
+                     <span className="text-xs font-mono text-blue-400 w-8 text-right">
+                         {(clip.speed ?? 1).toFixed(2)}x
+                     </span>
+                 </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
                 <div>
                     <label className="block text-xs text-gray-500 mb-1">Start (s)</label>
