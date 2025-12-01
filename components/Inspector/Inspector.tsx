@@ -1,13 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { Clip, Keyframe } from '../../types';
-import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers } from 'lucide-react';
+import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash } from 'lucide-react';
 import clsx from 'clsx';
 
-// ... PropertyControl component remains exactly the same, but omitted for brevity in XML if not changing logic significantly ...
-// WAIT, I need to include the full file content if I change it. 
-// I will include the full content to ensure PropertyControl is defined.
-
+// ... PropertyControl component ...
 interface PropertyControlProps {
   label: string;
   property: string;
@@ -28,9 +25,7 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
     const keyframes = clip.keyframes?.[property] || [];
     const hasKeyframes = keyframes.length > 0;
 
-    // Determine current effective value for display
     let displayValue = value;
-    
     if (hasKeyframes) {
         const sorted = [...keyframes].sort((a,b) => a.time - b.time);
         if (relativeTime <= sorted[0].time) displayValue = sorted[0].value;
@@ -56,12 +51,8 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
         };
         const filtered = keyframes.filter(k => Math.abs(k.time - relativeTime) > 0.05);
         const newKeyframes = [...filtered, newKeyframe].sort((a,b) => a.time - b.time);
-        
         updateClip(clip.id, {
-            keyframes: {
-                ...clip.keyframes,
-                [property]: newKeyframes
-            }
+            keyframes: { ...clip.keyframes, [property]: newKeyframes }
         });
     };
 
@@ -161,7 +152,6 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
                     className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
                     style={{ left: `${(relativeTime / clip.duration) * 100}%` }}
                 />
-                
                 {keyframes.map(kf => (
                     <div
                         key={kf.id}
@@ -169,7 +159,6 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
                         onContextMenu={(e) => removeKeyframe(e, kf.id)}
                         className="absolute top-0.5 w-2.5 h-2.5 bg-yellow-500 rotate-45 -ml-1.25 cursor-ew-resize hover:bg-yellow-400 hover:scale-125 transition-transform z-20 border border-black/50"
                         style={{ left: `${(kf.time / clip.duration) * 100}%` }}
-                        title={`Value: ${kf.value.toFixed(2)} | Right-click to delete`}
                     />
                 ))}
             </div>
@@ -182,10 +171,11 @@ const CLIP_COLORS = [
     '#a855f7', '#ec4899', '#f97316', '#6b7280', 
 ];
 
+const FONTS = ['Inter', 'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana'];
+
 export const Inspector: React.FC = () => {
   const { selectedClipIds, getClip, updateClip, removeSelectedClips, deselectAll, currentTime } = useStore();
   
-  // Show different UI based on selection count
   if (selectedClipIds.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500 text-sm p-8 text-center bg-[#1a1a1a] border-l border-gray-800">
@@ -201,17 +191,13 @@ export const Inspector: React.FC = () => {
         <Layers className="w-12 h-12 mb-4 opacity-20" />
         <p className="font-medium text-gray-200">{selectedClipIds.length} clips selected</p>
         <p className="mt-2 text-xs text-gray-600">Multi-editing properties is not supported in this prototype.</p>
-        <button 
-            onClick={deselectAll}
-            className="mt-4 text-xs text-blue-400 hover:text-blue-300 underline"
-        >
+        <button onClick={deselectAll} className="mt-4 text-xs text-blue-400 hover:text-blue-300 underline">
             Clear Selection
         </button>
       </div>
     );
   }
 
-  // Single Clip Mode
   const clip = getClip(selectedClipIds[0]);
   if (!clip) return null;
 
@@ -234,6 +220,7 @@ export const Inspector: React.FC = () => {
             className="w-full bg-black/30 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500 transition-colors mb-3"
           />
           
+          {/* Color Palette */}
           <div className="flex items-center gap-2">
              <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                  <Palette className="w-3 h-3" />
@@ -262,6 +249,84 @@ export const Inspector: React.FC = () => {
           </div>
         </div>
 
+        {/* --- Text Specific Controls --- */}
+        {clip.type === 'text' && (
+            <div>
+                <h3 className="text-xs font-bold text-gray-400 mb-3 border-b border-gray-800 pb-1">Text Style</h3>
+                
+                <textarea
+                    value={clip.text || ''}
+                    onChange={(e) => updateClip(clip.id, { text: e.target.value })}
+                    className="w-full h-20 bg-black/30 border border-gray-700 rounded p-2 text-sm text-white mb-3 resize-none focus:border-blue-500 focus:outline-none"
+                    placeholder="Enter text..."
+                />
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                        <label className="block text-xs text-gray-500 mb-1">Font Family</label>
+                        <select
+                            value={clip.fontFamily || 'Inter'}
+                            onChange={(e) => updateClip(clip.id, { fontFamily: e.target.value })}
+                            className="w-full bg-black/30 border border-gray-700 rounded px-2 py-1 text-xs text-gray-200 focus:outline-none"
+                        >
+                            {FONTS.map(f => <option key={f} value={f}>{f}</option>)}
+                        </select>
+                    </div>
+                    <div>
+                        <label className="block text-xs text-gray-500 mb-1">Color</label>
+                        <div className="flex gap-2">
+                            <input
+                                type="color"
+                                value={clip.textColor || '#ffffff'}
+                                onChange={(e) => updateClip(clip.id, { textColor: e.target.value })}
+                                className="h-6 w-full bg-transparent cursor-pointer rounded overflow-hidden"
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="flex gap-2 mb-3">
+                    <button
+                        onClick={() => updateClip(clip.id, { isBold: !clip.isBold })}
+                        className={clsx("flex-1 py-1.5 border rounded text-xs transition-colors", clip.isBold ? "bg-blue-900/30 border-blue-500 text-blue-200" : "border-gray-700 text-gray-400 hover:bg-gray-800")}
+                    >
+                        <Bold className="w-3 h-3 mx-auto" />
+                    </button>
+                    <button
+                        onClick={() => updateClip(clip.id, { isItalic: !clip.isItalic })}
+                        className={clsx("flex-1 py-1.5 border rounded text-xs transition-colors", clip.isItalic ? "bg-blue-900/30 border-blue-500 text-blue-200" : "border-gray-700 text-gray-400 hover:bg-gray-800")}
+                    >
+                        <Italic className="w-3 h-3 mx-auto" />
+                    </button>
+                    <button
+                        onClick={() => updateClip(clip.id, { hasShadow: !clip.hasShadow })}
+                        className={clsx("flex-1 py-1.5 border rounded text-xs transition-colors", clip.hasShadow ? "bg-blue-900/30 border-blue-500 text-blue-200" : "border-gray-700 text-gray-400 hover:bg-gray-800")}
+                    >
+                        <Hash className="w-3 h-3 mx-auto" />
+                    </button>
+                </div>
+
+                {clip.hasShadow && (
+                     <div className="mb-3">
+                        <label className="block text-xs text-gray-500 mb-1">Shadow Color</label>
+                        <input
+                            type="color"
+                            value={clip.shadowColor || '#000000'}
+                            onChange={(e) => updateClip(clip.id, { shadowColor: e.target.value })}
+                            className="h-6 w-full bg-transparent cursor-pointer rounded overflow-hidden"
+                        />
+                     </div>
+                )}
+                
+                <PropertyControl 
+                    label="Font Size" property="fontSize" 
+                    value={clip.fontSize ?? 40} min={10} max={200} step={1} unit="px"
+                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                />
+            </div>
+        )}
+
+        {/* --- Timing --- */}
         <div>
             <h3 className="text-xs font-bold text-gray-400 mb-3 border-b border-gray-800 pb-1">Timing</h3>
             <div className="grid grid-cols-2 gap-3">
@@ -288,47 +353,42 @@ export const Inspector: React.FC = () => {
             </div>
         </div>
 
-        {(clip.type === 'video' || clip.type === 'image') && (
-             <div>
-                <div className="flex items-center justify-between border-b border-gray-800 pb-1 mb-3">
-                    <h3 className="text-xs font-bold text-gray-400">Transform & Keyframes</h3>
-                    <div className="text-[10px] text-gray-600 flex items-center gap-1">
-                        <Diamond className="w-2.5 h-2.5" />
-                        <span>Right-click KFs to del</span>
-                    </div>
-                </div>
-                
-                <PropertyControl 
-                    label="Opacity" property="opacity" 
-                    value={clip.opacity ?? 1} min={0} max={1} step={0.01} 
-                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
-                />
-                
-                <PropertyControl 
-                    label="Scale" property="scale" 
-                    value={clip.scale ?? 1} min={0} max={3} step={0.01} unit="x"
-                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
-                />
-                
-                <PropertyControl 
-                    label="Rotation" property="rotation" 
-                    value={clip.rotation ?? 0} min={-360} max={360} step={1} unit="°"
-                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
-                />
+        {/* --- Transform --- */}
+        <div>
+            <div className="flex items-center justify-between border-b border-gray-800 pb-1 mb-3">
+                <h3 className="text-xs font-bold text-gray-400">Transform & Keyframes</h3>
+            </div>
+            
+            <PropertyControl 
+                label="Opacity" property="opacity" 
+                value={clip.opacity ?? 1} min={0} max={1} step={0.01} 
+                clip={clip} currentTime={currentTime} updateClip={updateClip} 
+            />
+            
+            <PropertyControl 
+                label="Scale" property="scale" 
+                value={clip.scale ?? 1} min={0} max={3} step={0.01} unit="x"
+                clip={clip} currentTime={currentTime} updateClip={updateClip} 
+            />
+            
+            <PropertyControl 
+                label="Rotation" property="rotation" 
+                value={clip.rotation ?? 0} min={-360} max={360} step={1} unit="°"
+                clip={clip} currentTime={currentTime} updateClip={updateClip} 
+            />
 
-                <PropertyControl 
-                    label="Position X" property="positionX" 
-                    value={clip.positionX ?? 0} min={-1000} max={1000} step={10} unit="px"
-                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
-                />
+            <PropertyControl 
+                label="Position X" property="positionX" 
+                value={clip.positionX ?? 0} min={-1000} max={1000} step={10} unit="px"
+                clip={clip} currentTime={currentTime} updateClip={updateClip} 
+            />
 
-                <PropertyControl 
-                    label="Position Y" property="positionY" 
-                    value={clip.positionY ?? 0} min={-600} max={600} step={10} unit="px"
-                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
-                />
-             </div>
-        )}
+            <PropertyControl 
+                label="Position Y" property="positionY" 
+                value={clip.positionY ?? 0} min={-600} max={600} step={10} unit="px"
+                clip={clip} currentTime={currentTime} updateClip={updateClip} 
+            />
+        </div>
 
         <div className="pt-4 border-t border-gray-800">
             <button 

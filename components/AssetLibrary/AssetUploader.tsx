@@ -1,7 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { db } from '../../services/db';
-import { Upload, FileVideo, Music, Image as ImageIcon, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { Upload, FileVideo, Music, Image as ImageIcon, Loader2, Sparkles, AlertCircle, Type, Plus } from 'lucide-react';
 import { Asset } from '../../types';
 import { GoogleGenAI } from "@google/genai";
 import clsx from 'clsx';
@@ -10,13 +10,16 @@ export const AssetUploader: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addAsset, addClip, tracks } = useStore();
   
-  const [mode, setMode] = useState<'upload' | 'generate'>('upload');
+  const [mode, setMode] = useState<'upload' | 'generate' | 'text'>('upload');
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState('');
 
   // Generation State
   const [prompt, setPrompt] = useState('');
   const [aspectRatio, setAspectRatio] = useState<'16:9' | '9:16'>('16:9');
+
+  // Text State
+  const [textInput, setTextInput] = useState('New Text Layer');
 
   const processFile = async (file: File) => {
       const type = file.type.startsWith('video') ? 'video' : file.type.startsWith('audio') ? 'audio' : 'image';
@@ -186,6 +189,38 @@ export const AssetUploader: React.FC = () => {
       }
   };
 
+  const handleAddText = () => {
+    // Find first video track (usually index 0 is top)
+    const track = tracks.find(t => t.type === 'video');
+    if (!track) {
+        alert("No video track found to place text.");
+        return;
+    }
+
+    addClip({
+        id: crypto.randomUUID(),
+        assetId: 'text-placeholder', // Text clips don't need real asset
+        trackId: track.id,
+        startOffset: 0,
+        startTime: 0, // Add to start
+        duration: 5,
+        name: 'Text Layer',
+        type: 'text',
+        text: textInput,
+        fontSize: 60,
+        fontFamily: 'Inter',
+        textColor: '#ffffff',
+        isBold: true,
+        hasShadow: true,
+        scale: 1,
+        positionX: 0,
+        positionY: 0
+    });
+    
+    setTextInput('');
+    setMode('upload'); // Switch back to view list or stay? Stay for now.
+  };
+
   return (
     <div className="p-4 border-b border-gray-800 flex flex-col gap-4 bg-[#121212]">
       {/* Tabs */}
@@ -203,9 +238,16 @@ export const AssetUploader: React.FC = () => {
             <Sparkles className="w-3 h-3" />
             AI Video
         </button>
+        <button 
+           onClick={() => setMode('text')}
+           className={clsx("flex-1 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1.5", mode === 'text' ? "bg-gray-700 text-white shadow-sm" : "text-gray-400 hover:text-gray-200 hover:bg-gray-800")}
+        >
+            <Type className="w-3 h-3" />
+            Text
+        </button>
       </div>
 
-      {mode === 'upload' ? (
+      {mode === 'upload' && (
         <>
             <input
                 type="file"
@@ -227,16 +269,17 @@ export const AssetUploader: React.FC = () => {
                 </span>
             </button>
         </>
-      ) : (
+      )}
+
+      {mode === 'generate' && (
         <div className="space-y-3 animate-in fade-in duration-300">
              <textarea 
                 value={prompt}
                 onChange={e => setPrompt(e.target.value)}
-                placeholder="Describe your video... (e.g., A cinematic drone shot of a futuristic cyberpunk city)"
+                placeholder="Describe your video..."
                 className="w-full h-24 bg-black/40 border border-gray-700 rounded-md p-3 text-sm text-white resize-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none placeholder:text-gray-600"
              />
              
-             {/* Aspect Ratio */}
              <div className="flex gap-2">
                 <button 
                     onClick={() => setAspectRatio('16:9')} 
@@ -267,11 +310,27 @@ export const AssetUploader: React.FC = () => {
                      <span>{statusText}</span>
                  </div>
              )}
-             
-             <div className="text-[10px] text-gray-600 flex items-start gap-1.5 bg-gray-900/50 p-2 rounded border border-gray-800">
-                <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
-                <p>Powered by Google Veo 3. Generation takes ~1 minute. Video will be auto-added to the timeline.</p>
-             </div>
+        </div>
+      )}
+
+      {mode === 'text' && (
+        <div className="space-y-3 animate-in fade-in duration-300">
+            <input 
+                type="text"
+                value={textInput}
+                onChange={e => setTextInput(e.target.value)}
+                placeholder="Enter text..."
+                className="w-full bg-black/40 border border-gray-700 rounded-md p-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+            />
+            <button 
+                onClick={handleAddText}
+                disabled={!textInput}
+                className="w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-white py-2.5 rounded-md text-sm font-medium disabled:opacity-50 transition-colors border border-gray-700"
+            >
+                <Plus className="w-4 h-4" />
+                Add Text Layer
+            </button>
+            <p className="text-[10px] text-gray-500">Text clips are added to the first video track.</p>
         </div>
       )}
     </div>

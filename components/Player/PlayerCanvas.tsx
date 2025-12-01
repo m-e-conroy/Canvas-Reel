@@ -57,6 +57,9 @@ export const PlayerCanvas: React.FC = () => {
       currentTracks.forEach(track => {
           if (track.isHidden) return;
           track.clips.forEach(clip => {
+             // Text clips don't have media to sync
+             if (clip.type === 'text') return;
+
              if (time >= clip.startTime && time < clip.startTime + clip.duration) {
                  const clipOffset = time - clip.startTime;
                  const sourceTime = clip.startOffset + clipOffset;
@@ -150,9 +153,6 @@ export const PlayerCanvas: React.FC = () => {
     });
 
     visibleClips.forEach(({ clip }) => {
-        const media = mediaRefs.current.get(clip.assetId);
-        if (!media) return;
-
         // Calculate Transforms
         const relativeTime = time - clip.startTime;
         const opacity = getInterpolatedValue(clip, 'opacity', relativeTime, 1);
@@ -175,25 +175,50 @@ export const PlayerCanvas: React.FC = () => {
         // Scale
         ctx.scale(scale, scale);
         
-        // Translate back to origin of image
-        // We draw the image centered at (0,0) in local space
-        let w = 0, h = 0;
-        let drawMedia: HTMLVideoElement | HTMLImageElement | null = null;
+        if (clip.type === 'text') {
+             // Text Rendering
+             const fontSize = clip.fontSize ?? 40;
+             const fontFamily = clip.fontFamily ?? 'Inter';
+             const isBold = clip.isBold ? 'bold ' : '';
+             const isItalic = clip.isItalic ? 'italic ' : '';
+             
+             ctx.font = `${isItalic}${isBold}${fontSize}px ${fontFamily}`;
+             ctx.textAlign = 'center';
+             ctx.textBaseline = 'middle';
+             
+             if (clip.hasShadow) {
+                 ctx.shadowColor = clip.shadowColor ?? '#000000';
+                 ctx.shadowBlur = 4;
+                 ctx.shadowOffsetX = 2;
+                 ctx.shadowOffsetY = 2;
+             }
 
-        if (clip.type === 'video' && media instanceof HTMLVideoElement) {
-             const aspectScale = Math.min(canvas.width / media.videoWidth, canvas.height / media.videoHeight);
-             w = media.videoWidth * aspectScale;
-             h = media.videoHeight * aspectScale;
-             drawMedia = media;
-        } else if (clip.type === 'image' && media instanceof HTMLImageElement) {
-             const aspectScale = Math.min(canvas.width / media.width, canvas.height / media.height);
-             w = media.width * aspectScale;
-             h = media.height * aspectScale;
-             drawMedia = media;
-        }
+             ctx.fillStyle = clip.textColor ?? '#ffffff';
+             ctx.fillText(clip.text ?? 'Text', 0, 0);
 
-        if (drawMedia) {
-             ctx.drawImage(drawMedia, -w/2, -h/2, w, h);
+        } else {
+             // Media Rendering (Video/Image)
+             const media = mediaRefs.current.get(clip.assetId);
+             if (media) {
+                 let w = 0, h = 0;
+                 let drawMedia: HTMLVideoElement | HTMLImageElement | null = null;
+
+                 if (clip.type === 'video' && media instanceof HTMLVideoElement) {
+                      const aspectScale = Math.min(canvas.width / media.videoWidth, canvas.height / media.videoHeight);
+                      w = media.videoWidth * aspectScale;
+                      h = media.videoHeight * aspectScale;
+                      drawMedia = media;
+                 } else if (clip.type === 'image' && media instanceof HTMLImageElement) {
+                      const aspectScale = Math.min(canvas.width / media.width, canvas.height / media.height);
+                      w = media.width * aspectScale;
+                      h = media.height * aspectScale;
+                      drawMedia = media;
+                 }
+
+                 if (drawMedia) {
+                      ctx.drawImage(drawMedia, -w/2, -h/2, w, h);
+                 }
+             }
         }
 
         ctx.restore();

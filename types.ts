@@ -23,7 +23,7 @@ export interface Clip {
   startTime: number; // Start time on the timeline
   duration: number; // Duration of the clip on the timeline
   name: string;
-  type: 'video' | 'audio' | 'image';
+  type: 'video' | 'audio' | 'image' | 'text';
   color?: string; // Hex code for custom clip color
   groupId?: string; // ID for grouping multiple clips together
   
@@ -36,6 +36,16 @@ export interface Clip {
   
   // Keyframes
   keyframes?: Record<string, Keyframe[]>; // e.g. { "scale": [...], "opacity": [...] }
+
+  // Text Properties
+  text?: string;
+  fontSize?: number;
+  fontFamily?: string;
+  textColor?: string;
+  isBold?: boolean;
+  isItalic?: boolean;
+  hasShadow?: boolean;
+  shadowColor?: string;
 }
 
 export interface Track {
