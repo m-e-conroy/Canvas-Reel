@@ -174,6 +174,11 @@ export const PlayerCanvas: React.FC = () => {
         
         // Scale
         ctx.scale(scale, scale);
+
+        // Flip
+        const flipX = clip.flipHorizontal ? -1 : 1;
+        const flipY = clip.flipVertical ? -1 : 1;
+        ctx.scale(flipX, flipY);
         
         if (clip.type === 'text') {
              // Text Rendering

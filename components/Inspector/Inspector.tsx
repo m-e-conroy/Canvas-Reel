@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { Clip, Keyframe } from '../../types';
-import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash } from 'lucide-react';
+import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash, FlipHorizontal, FlipVertical } from 'lucide-react';
 import clsx from 'clsx';
 
 // ... PropertyControl component ...
@@ -359,6 +359,23 @@ export const Inspector: React.FC = () => {
                 <h3 className="text-xs font-bold text-gray-400">Transform & Keyframes</h3>
             </div>
             
+            <div className="flex gap-2 mb-4">
+                <button
+                    onClick={() => updateClip(clip.id, { flipHorizontal: !clip.flipHorizontal })}
+                    className={clsx("flex-1 py-1.5 border rounded text-xs transition-colors flex items-center justify-center gap-1", clip.flipHorizontal ? "bg-blue-900/30 border-blue-500 text-blue-200" : "border-gray-700 text-gray-400 hover:bg-gray-800")}
+                    title="Flip Horizontally"
+                >
+                    <FlipHorizontal className="w-3.5 h-3.5" /> Flip H
+                </button>
+                <button
+                    onClick={() => updateClip(clip.id, { flipVertical: !clip.flipVertical })}
+                    className={clsx("flex-1 py-1.5 border rounded text-xs transition-colors flex items-center justify-center gap-1", clip.flipVertical ? "bg-blue-900/30 border-blue-500 text-blue-200" : "border-gray-700 text-gray-400 hover:bg-gray-800")}
+                    title="Flip Vertically"
+                >
+                    <FlipVertical className="w-3.5 h-3.5" /> Flip V
+                </button>
+            </div>
+
             <PropertyControl 
                 label="Opacity" property="opacity" 
                 value={clip.opacity ?? 1} min={0} max={1} step={0.01} 

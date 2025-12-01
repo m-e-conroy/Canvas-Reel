@@ -33,6 +33,8 @@ export interface Clip {
   scale?: number;
   rotation?: number; // Degrees
   opacity?: number; // 0-1
+  flipHorizontal?: boolean;
+  flipVertical?: boolean;
   
   // Keyframes
   keyframes?: Record<string, Keyframe[]>; // e.g. { "scale": [...], "opacity": [...] }
