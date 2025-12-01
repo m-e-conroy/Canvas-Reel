@@ -8,15 +8,15 @@ export interface DBAsset {
   createdAt: number;
 }
 
-class BrowserNLEDatabase extends Dexie {
+class CanvasReelDatabase extends Dexie {
   assets!: Table<DBAsset>;
 
   constructor() {
-    super('BrowserNLE');
+    super('CanvasReel');
     (this as any).version(1).stores({
       assets: 'id, name, type, createdAt'
     });
   }
 }
 
-export const db = new BrowserNLEDatabase();
+export const db = new CanvasReelDatabase();

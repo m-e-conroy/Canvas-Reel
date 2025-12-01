@@ -5,6 +5,7 @@ import { PlayerCanvas } from '../Player/PlayerCanvas';
 import { PlayerControls } from '../Player/PlayerControls';
 import { Timeline } from '../Timeline/Timeline';
 import { Inspector } from '../Inspector/Inspector';
+import { Film, MonitorPlay } from 'lucide-react';
 
 export const EditorLayout: React.FC = () => {
   return (
@@ -14,8 +15,13 @@ export const EditorLayout: React.FC = () => {
         
         {/* Left Sidebar: Assets */}
         <div className="w-80 flex flex-col border-r border-gray-800 bg-[#121212]">
-          <div className="h-10 border-b border-gray-800 flex items-center px-4 font-semibold text-sm tracking-wide">
-            BrowserNLE
+          <div className="h-10 border-b border-gray-800 flex items-center px-4 gap-2.5 bg-[#151515]">
+            <div className="w-6 h-6 bg-gradient-to-br from-blue-600 to-blue-700 rounded flex items-center justify-center shadow-lg shadow-blue-900/20 border border-blue-500/30">
+               <Film className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
+            </div>
+            <span className="font-bold text-sm tracking-wide text-gray-100">
+              Canvas<span className="text-blue-500">Reel</span>
+            </span>
           </div>
           <AssetUploader />
           <AssetList />

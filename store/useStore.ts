@@ -18,6 +18,7 @@ interface EditorState {
   // Actions
   addAsset: (asset: Asset) => void;
   addTrack: (track: Track) => void;
+  updateTrack: (id: string, updates: Partial<Track>) => void;
   addClip: (clip: Clip) => void;
   updateClip: (id: string, updates: Partial<Clip>) => void;
   removeClip: (id: string) => void;
@@ -51,6 +52,10 @@ export const useStore = create<EditorState>((set, get) => ({
   
   addTrack: (track) => set((state) => ({ tracks: [...state.tracks, track] })),
   
+  updateTrack: (id, updates) => set((state) => ({
+    tracks: state.tracks.map(t => t.id === id ? { ...t, ...updates } : t)
+  })),
+
   addClip: (clip) => set((state) => {
     const newTracks = state.tracks.map(t => {
       if (t.id === clip.trackId) {

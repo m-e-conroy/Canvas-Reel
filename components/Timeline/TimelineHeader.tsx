@@ -35,7 +35,7 @@ export const TimelineHeader: React.FC = () => {
   return (
     <div 
         ref={rulerRef}
-        className="h-8 bg-[#1a1a1a] border-b border-gray-800 relative cursor-pointer overflow-hidden"
+        className="h-full bg-[#1a1a1a] border-b border-gray-800 relative cursor-pointer"
         style={{ width: `${width}px` }}
         onMouseDown={(e) => {
             if (e.buttons === 1) handleScrub(e);
