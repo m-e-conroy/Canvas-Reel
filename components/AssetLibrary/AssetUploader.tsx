@@ -22,16 +22,85 @@ export const AssetUploader: React.FC = () => {
   // Text State
   const [textInput, setTextInput] = useState('New Text Layer');
 
+  const generateThumbnail = async (file: File, type: string): Promise<Blob | undefined> => {
+      if (type === 'audio') return undefined;
+
+      return new Promise((resolve) => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          // Thumbnail size
+          canvas.width = 128;
+          canvas.height = 128;
+          
+          if (!ctx) {
+              resolve(undefined);
+              return;
+          }
+
+          if (type === 'video') {
+              const video = document.createElement('video');
+              video.src = URL.createObjectURL(file);
+              video.currentTime = 1.0; // Seek to 1s or start
+              video.muted = true;
+              video.playsInline = true;
+              video.onloadeddata = () => {
+                   if (video.duration < 1) video.currentTime = 0;
+              };
+              video.onseeked = () => {
+                  // Draw scaled
+                  const scale = Math.max(canvas.width / video.videoWidth, canvas.height / video.videoHeight);
+                  const x = (canvas.width / 2) - (video.videoWidth / 2) * scale;
+                  const y = (canvas.height / 2) - (video.videoHeight / 2) * scale;
+                  
+                  ctx.drawImage(video, x, y, video.videoWidth * scale, video.videoHeight * scale);
+                  canvas.toBlob((blob) => {
+                      URL.revokeObjectURL(video.src);
+                      resolve(blob || undefined);
+                  }, 'image/jpeg', 0.7);
+              };
+              video.onerror = () => {
+                   URL.revokeObjectURL(video.src);
+                   resolve(undefined);
+              };
+          } else if (type === 'image') {
+              const img = new Image();
+              img.src = URL.createObjectURL(file);
+              img.onload = () => {
+                  const scale = Math.max(canvas.width / img.width, canvas.height / img.height);
+                  const x = (canvas.width / 2) - (img.width / 2) * scale;
+                  const y = (canvas.height / 2) - (img.height / 2) * scale;
+                  
+                  ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+                  canvas.toBlob((blob) => {
+                      URL.revokeObjectURL(img.src);
+                      resolve(blob || undefined);
+                  }, 'image/jpeg', 0.7);
+              };
+              img.onerror = () => {
+                  URL.revokeObjectURL(img.src);
+                  resolve(undefined);
+              }
+          } else {
+              resolve(undefined);
+          }
+      });
+  };
+
   const processFile = async (file: File) => {
       const type = file.type.startsWith('video') ? 'video' : file.type.startsWith('audio') ? 'audio' : 'image';
       const id = crypto.randomUUID();
       
+      // Generate Thumbnail
+      const thumbnailBlob = await generateThumbnail(file, type);
+      const thumbnailSrc = thumbnailBlob ? URL.createObjectURL(thumbnailBlob) : undefined;
+
       // Store in Dexie
       await db.assets.add({
         id,
         name: file.name,
         type,
         blob: file,
+        thumbnailBlob: thumbnailBlob,
         createdAt: Date.now()
       });
 
@@ -64,6 +133,7 @@ export const AssetUploader: React.FC = () => {
         name: file.name,
         type: type as 'video' | 'audio' | 'image',
         src: url,
+        thumbnail: thumbnailSrc,
         duration,
         width,
         height

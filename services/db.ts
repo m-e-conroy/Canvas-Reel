@@ -1,3 +1,4 @@
+
 import Dexie, { Table } from 'dexie';
 
 export interface DBAsset {
@@ -5,6 +6,7 @@ export interface DBAsset {
   name: string;
   type: string;
   blob: Blob;
+  thumbnailBlob?: Blob;
   createdAt: number;
 }
 

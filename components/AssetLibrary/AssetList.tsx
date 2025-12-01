@@ -40,10 +40,24 @@ export const AssetList: React.FC = () => {
             onDoubleClick={() => addClipFromAsset(asset.id)}
             className="group relative flex items-start gap-3 p-3 bg-gray-800/50 rounded hover:bg-gray-800 transition-colors border border-transparent hover:border-gray-700 cursor-grab active:cursor-grabbing"
         >
-          <div className="w-10 h-10 bg-gray-900 rounded flex items-center justify-center shrink-0 pointer-events-none">
-            {asset.type === 'video' && <FileVideo className="w-5 h-5 text-blue-400" />}
-            {asset.type === 'audio' && <Music className="w-5 h-5 text-green-400" />}
-            {asset.type === 'image' && <ImageIcon className="w-5 h-5 text-purple-400" />}
+          <div className="w-10 h-10 bg-gray-900 rounded flex items-center justify-center shrink-0 pointer-events-none overflow-hidden relative border border-gray-800">
+            {asset.thumbnail ? (
+               <img src={asset.thumbnail} alt="" className="w-full h-full object-cover" />
+            ) : (
+                <>
+                    {asset.type === 'video' && <FileVideo className="w-5 h-5 text-blue-400" />}
+                    {asset.type === 'audio' && <Music className="w-5 h-5 text-green-400" />}
+                    {asset.type === 'image' && <ImageIcon className="w-5 h-5 text-purple-400" />}
+                </>
+            )}
+            
+            {/* Type indicator overlay for thumbnails */}
+            {asset.thumbnail && (
+                <div className="absolute bottom-0 right-0 p-0.5 bg-black/60 rounded-tl">
+                     {asset.type === 'video' && <FileVideo className="w-2.5 h-2.5 text-white/80" />}
+                     {asset.type === 'image' && <ImageIcon className="w-2.5 h-2.5 text-white/80" />}
+                </div>
+            )}
           </div>
           <div className="flex-1 min-w-0 pointer-events-none">
             <p className="text-sm font-medium text-gray-200 truncate">{asset.name}</p>

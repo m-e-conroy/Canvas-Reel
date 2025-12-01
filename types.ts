@@ -4,6 +4,7 @@ export interface Asset {
   name: string;
   type: 'video' | 'image' | 'audio';
   src: string; // Object URL
+  thumbnail?: string; // Object URL for preview
   duration: number; // in seconds
   width?: number;
   height?: number;
@@ -63,6 +64,16 @@ export interface Clip {
 
   // Keyframes
   keyframes?: Record<string, Keyframe[]>; // e.g. { "scale": [...], "opacity": [...] }
+
+  // Masking
+  mask?: {
+    isEnabled: boolean;
+    type: 'circle' | 'rectangle';
+    centerX: number; // 0-1 relative to clip width
+    centerY: number; // 0-1 relative to clip height
+    size: number; // 0-1 relative to clip smallest dimension
+    feather: number; // 0-100 blur amount
+  };
 
   // Text Properties
   text?: string;
