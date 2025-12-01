@@ -6,6 +6,7 @@ import { PlayerCanvas } from '../Player/PlayerCanvas';
 import { PlayerControls } from '../Player/PlayerControls';
 import { Timeline } from '../Timeline/Timeline';
 import { Inspector } from '../Inspector/Inspector';
+import { ContextMenu } from '../UI/ContextMenu';
 import { Film, MonitorPlay, Scissors, Trash2, ZoomIn, ZoomOut, Copy, Group, Ungroup, Link, Unlink, Flag } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
@@ -39,7 +40,8 @@ export const EditorLayout: React.FC = () => {
   const hasMultiple = selectedClipIds.length > 1;
 
   return (
-    <div className="flex flex-col h-screen w-full bg-[#0f0f0f] text-gray-200 overflow-hidden">
+    <div className="flex flex-col h-screen w-full bg-[#0f0f0f] text-gray-200 overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
+      <ContextMenu />
       {/* Top Section: Assets & Player & Inspector */}
       <div className="flex flex-1 min-h-0">
         

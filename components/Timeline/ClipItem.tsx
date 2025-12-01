@@ -1,22 +1,24 @@
+
 import React, { useMemo } from 'react';
 import { Clip } from '../../types';
 import { useStore } from '../../store/useStore';
 import clsx from 'clsx';
-import { Layers, Link, Type } from 'lucide-react';
+import { Layers, Link, Type, EyeOff, VolumeX } from 'lucide-react';
 
 interface ClipItemProps {
   clip: Clip;
 }
 
 export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
-  const { zoom, selectedClipIds, selectClip, startDrag, activeDrag, tracks } = useStore();
+  const { zoom, selectedClipIds, selectClip, startDrag, activeDrag, tracks, openContextMenu } = useStore();
   const isSelected = selectedClipIds.includes(clip.id);
   const isDragging = activeDrag?.draggedClips.some(dc => dc.clipId === clip.id);
 
   const handleMouseDown = (e: React.MouseEvent, mode: 'move' | 'resize-left' | 'resize-right') => {
     e.stopPropagation();
     e.preventDefault();
-    
+    if (e.button === 2) return; // Ignore right click for dragging
+
     if (e.shiftKey) {
         selectClip(clip.id, true);
     } else {
@@ -26,6 +28,24 @@ export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
     }
     
     startDrag(clip.id, mode, e.clientX);
+  };
+
+  const handleContextMenu = (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // If right clicking an unselected clip, select it exclusively
+      if (!isSelected) {
+          selectClip(clip.id, false);
+      }
+      
+      openContextMenu({
+          visible: true,
+          x: e.clientX,
+          y: e.clientY,
+          type: 'clip',
+          targetId: clip.id
+      });
   };
 
   const { zIndex, isObscured } = useMemo(() => {
@@ -69,6 +89,7 @@ export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
   return (
     <div
       onMouseDown={(e) => handleMouseDown(e, 'move')}
+      onContextMenu={handleContextMenu}
       className={clsx(
         "absolute top-1 bottom-1 rounded overflow-hidden select-none border group transition-colors",
         !clip.color && (
@@ -78,7 +99,8 @@ export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
             "bg-purple-900/50 border-purple-800"
         ),
         (isSelected || isDragging) ? "ring-2 ring-white border-transparent z-10" : "hover:brightness-110",
-        isDragging ? "cursor-grabbing" : "cursor-grab"
+        isDragging ? "cursor-grabbing" : "cursor-grab",
+        clip.visible === false && "opacity-50 grayscale"
       )}
       style={style}
     >
@@ -86,6 +108,8 @@ export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
         <div className="text-xs text-white/90 truncate font-medium flex items-center gap-1 leading-tight">
             {clip.groupId && <Link className="w-3 h-3 text-white/70 shrink-0" />}
             {clip.type === 'text' && <Type className="w-3 h-3 text-white/70 shrink-0" />}
+            {clip.visible === false && <EyeOff className="w-3 h-3 text-white/70 shrink-0" />}
+            {clip.muted && <VolumeX className="w-3 h-3 text-red-300 shrink-0" />}
             {clip.name}
         </div>
         <div className="text-[10px] text-white/60 truncate font-mono leading-tight">

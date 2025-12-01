@@ -45,6 +45,10 @@ export interface Clip {
   color?: string; // Hex code for custom clip color
   groupId?: string; // ID for grouping multiple clips together
   
+  // Visibility & Audio
+  muted?: boolean;
+  visible?: boolean;
+
   // Transform properties
   positionX?: number;
   positionY?: number;

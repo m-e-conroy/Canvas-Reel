@@ -17,6 +17,14 @@ interface DragSession {
   draggedClips: DraggedClipState[]; // All clips moving (selection or group)
 }
 
+interface ContextMenuState {
+  visible: boolean;
+  x: number;
+  y: number;
+  type: 'clip' | 'asset';
+  targetId: string;
+}
+
 interface EditorState {
   // Data
   assets: Asset[];
@@ -33,9 +41,13 @@ interface EditorState {
   selectedClipIds: string[];
   selectedMarkerId: string | null;
   activeDrag: DragSession | null;
+  contextMenu: ContextMenuState | null;
 
   // Actions
   addAsset: (asset: Asset) => void;
+  removeAsset: (id: string) => void;
+  addClipFromAsset: (assetId: string) => void;
+
   addTrack: (track: Track) => void;
   updateTrack: (id: string, updates: Partial<Track>) => void;
   addClip: (clip: Clip) => void;
@@ -67,6 +79,10 @@ interface EditorState {
   // Drag Actions
   startDrag: (clipId: string, mode: DragSession['mode'], startX: number) => void;
   stopDrag: () => void;
+
+  // Context Menu
+  openContextMenu: (menu: ContextMenuState) => void;
+  closeContextMenu: () => void;
   
   // Helpers
   getClip: (id: string) => Clip | undefined;
@@ -91,9 +107,54 @@ export const useStore = create<EditorState>((set, get) => ({
   selectedClipIds: [],
   selectedMarkerId: null,
   activeDrag: null,
+  contextMenu: null,
 
   addAsset: (asset) => set((state) => ({ assets: [...state.assets, asset] })),
   
+  removeAsset: (id) => set((state) => ({ 
+      assets: state.assets.filter(a => a.id !== id),
+      // Also remove clips that use this asset? For now, we keep them but they might break or show blank.
+      // Ideally we should warn or remove them. Let's just remove the asset for now.
+  })),
+
+  addClipFromAsset: (assetId) => {
+      const state = get();
+      const asset = state.assets.find(a => a.id === assetId);
+      if (!asset) return;
+
+      // Find compatible track
+      const compatibleTrack = state.tracks.find(t => t.type === asset.type);
+      if (!compatibleTrack) {
+          alert("No compatible track found (Video -> Video Track, Audio -> Audio Track)");
+          return;
+      }
+
+      // Determine start time (end of last clip on track or 0)
+      let startTime = 0;
+      if (compatibleTrack.clips.length > 0) {
+          const lastClip = compatibleTrack.clips.reduce((prev, current) => 
+              (prev.startTime + prev.duration > current.startTime + current.duration) ? prev : current
+          );
+          startTime = lastClip.startTime + lastClip.duration;
+      }
+
+      const newClip: Clip = {
+          id: crypto.randomUUID(),
+          assetId: asset.id,
+          trackId: compatibleTrack.id,
+          startOffset: 0,
+          startTime: startTime,
+          duration: asset.duration,
+          name: asset.name,
+          type: asset.type,
+          scale: 1,
+          positionX: 0,
+          positionY: 0
+      };
+
+      state.addClip(newClip);
+  },
+
   addTrack: (track) => set((state) => ({ tracks: [...state.tracks, track] })),
   
   updateTrack: (id, updates) => set((state) => ({
@@ -170,7 +231,7 @@ export const useStore = create<EditorState>((set, get) => ({
     }
   }),
 
-  deselectAll: () => set({ selectedClipIds: [], selectedMarkerId: null }),
+  deselectAll: () => set({ selectedClipIds: [], selectedMarkerId: null, contextMenu: null }),
 
   updateClip: (id, updates) => set((state) => {
     // If trackId is changing, we need to move the clip between arrays
@@ -341,12 +402,6 @@ export const useStore = create<EditorState>((set, get) => ({
   setZoom: (zoom) => set({ zoom }),
 
   startDrag: (clipId, mode, startX) => set((state) => {
-      // Logic: 
-      // If clipId is in selectedClipIds, move ALL selected clips.
-      // If clipId is NOT in selection, we probably should have selected it on mousedown, 
-      // but if not, treat it as single drag (or auto-select it).
-      // Assuming MouseDown handled selection:
-      
       const isSelected = state.selectedClipIds.includes(clipId);
       const clipsToDragIds = isSelected ? state.selectedClipIds : [clipId];
 
@@ -377,6 +432,9 @@ export const useStore = create<EditorState>((set, get) => ({
   }),
 
   stopDrag: () => set({ activeDrag: null }),
+
+  openContextMenu: (menu) => set({ contextMenu: menu }),
+  closeContextMenu: () => set({ contextMenu: null }),
 
   getClip: (id) => {
     const state = get();

@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { Asset, Clip, Track, Keyframe } from '../../types';
@@ -67,7 +68,7 @@ export const PlayerCanvas: React.FC = () => {
                  assetStates.set(clip.assetId, { 
                      shouldPlay: playing, 
                      time: sourceTime, 
-                     volume: track.isMuted ? 0 : 1 
+                     volume: (track.isMuted || clip.muted) ? 0 : 1 
                  });
              }
           });
@@ -146,6 +147,7 @@ export const PlayerCanvas: React.FC = () => {
     [...currentTracks].reverse().forEach(track => {
         if (track.isHidden) return;
         track.clips.forEach(clip => {
+             if (clip.visible === false) return; // Skip hidden clips
              if (time >= clip.startTime && time < clip.startTime + clip.duration) {
                  visibleClips.push({ clip, track });
              }
@@ -218,10 +220,6 @@ export const PlayerCanvas: React.FC = () => {
         ctx.scale(flipX, flipY);
 
         // --- Wipe Clipping ---
-        // Note: We apply wipe AFTER transforms so it moves with the clip? 
-        // Or BEFORE so it stays absolute? 
-        // "Wipe" usually means the mask moves or grows.
-        // Let's implement local wipes (mask grows to reveal content)
         if (clip.transition && clip.transition.type.startsWith('wipe') && relativeTime < clip.transition.duration) {
             const p = relativeTime / clip.transition.duration;
             const ease = 1 - Math.pow(1 - p, 3);
