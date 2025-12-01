@@ -1,0 +1,5 @@
+{
+  "name": "BrowserNLE",
+  "description": "A high-performance, non-linear video editing prototype running entirely in the browser using React, Canvas, and IndexedDB.",
+  "requestFramePermissions": []
+}
