@@ -164,10 +164,47 @@ export const PlayerCanvas: React.FC = () => {
         if (opacity <= 0) return;
 
         ctx.save();
-        ctx.globalAlpha = opacity;
+        
+        // --- Transitions ---
+        let transOffsetX = 0;
+        let transOffsetY = 0;
+        let transOpacity = 1;
+        let wipeRect: {x: number, y: number, w: number, h: number} | null = null;
+
+        if (clip.transition && clip.transition.type !== 'none') {
+            const tDur = clip.transition.duration;
+            if (relativeTime < tDur) {
+                const p = relativeTime / tDur;
+                const ease = 1 - Math.pow(1 - p, 3); // Cubic ease out
+
+                switch (clip.transition.type) {
+                    case 'fade':
+                        transOpacity = p;
+                        break;
+                    case 'slide-left': // Enters from right
+                        transOffsetX = canvas.width * (1 - ease);
+                        break;
+                    case 'slide-right': // Enters from left
+                        transOffsetX = -canvas.width * (1 - ease);
+                        break;
+                    case 'slide-up': // Enters from bottom
+                        transOffsetY = canvas.height * (1 - ease);
+                        break;
+                    case 'slide-down': // Enters from top
+                        transOffsetY = -canvas.height * (1 - ease);
+                        break;
+                    // For wipes, we'll apply clip after transform setup, need to know bounds. 
+                    // To simplify, we wipe relative to canvas center which is current 0,0 after translate
+                    // We'll set a flag to apply clip later.
+                    // Note: Wipes here are simplified to full-screen wipes relative to clip center.
+                }
+            }
+        }
+
+        ctx.globalAlpha = opacity * transOpacity;
         
         // Translate to Center + Offset
-        ctx.translate(canvas.width/2 + posX, canvas.height/2 + posY);
+        ctx.translate(canvas.width/2 + posX + transOffsetX, canvas.height/2 + posY + transOffsetY);
         
         // Rotate
         ctx.rotate(rotation * Math.PI / 180);
@@ -179,6 +216,37 @@ export const PlayerCanvas: React.FC = () => {
         const flipX = clip.flipHorizontal ? -1 : 1;
         const flipY = clip.flipVertical ? -1 : 1;
         ctx.scale(flipX, flipY);
+
+        // --- Wipe Clipping ---
+        // Note: We apply wipe AFTER transforms so it moves with the clip? 
+        // Or BEFORE so it stays absolute? 
+        // "Wipe" usually means the mask moves or grows.
+        // Let's implement local wipes (mask grows to reveal content)
+        if (clip.transition && clip.transition.type.startsWith('wipe') && relativeTime < clip.transition.duration) {
+            const p = relativeTime / clip.transition.duration;
+            const ease = 1 - Math.pow(1 - p, 3);
+            
+            // Assume clip is roughly canvas size for wipe calculations, or standard 1280x720 base
+            const w = 1280; 
+            const h = 720;
+            
+            ctx.beginPath();
+            switch (clip.transition.type) {
+                case 'wipe-right': // Left to Right
+                    ctx.rect(-w/2, -h/2, w * ease, h);
+                    break;
+                case 'wipe-left': // Right to Left
+                    ctx.rect(w/2 - (w * ease), -h/2, w * ease, h);
+                    break;
+                case 'wipe-down': // Top to Bottom
+                    ctx.rect(-w/2, -h/2, w, h * ease);
+                    break;
+                case 'wipe-up': // Bottom to Top
+                    ctx.rect(-w/2, h/2 - (h * ease), w, h * ease);
+                    break;
+            }
+            ctx.clip();
+        }
         
         if (clip.type === 'text') {
              // Text Rendering

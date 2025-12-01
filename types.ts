@@ -15,6 +15,23 @@ export interface Keyframe {
   easing?: 'linear'; 
 }
 
+export type TransitionType = 
+  | 'none' 
+  | 'fade' 
+  | 'slide-left' // Enters from right, moving left
+  | 'slide-right' // Enters from left, moving right
+  | 'slide-up' // Enters from bottom, moving up
+  | 'slide-down' // Enters from top, moving down
+  | 'wipe-left' // Reveals right to left
+  | 'wipe-right' // Reveals left to right
+  | 'wipe-up' // Reveals bottom to top
+  | 'wipe-down'; // Reveals top to bottom
+
+export interface Transition {
+  type: TransitionType;
+  duration: number;
+}
+
 export interface Clip {
   id: string;
   assetId: string;
@@ -36,6 +53,9 @@ export interface Clip {
   flipHorizontal?: boolean;
   flipVertical?: boolean;
   
+  // Transitions
+  transition?: Transition;
+
   // Keyframes
   keyframes?: Record<string, Keyframe[]>; // e.g. { "scale": [...], "opacity": [...] }
 

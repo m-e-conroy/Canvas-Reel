@@ -95,6 +95,16 @@ export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
       
       <div className="absolute inset-0 opacity-20 bg-gradient-to-b from-transparent to-black/50 pointer-events-none" />
 
+      {/* Transition Indicator */}
+      {clip.transition && clip.transition.type !== 'none' && (
+          <div 
+            className="absolute left-0 top-0 bottom-0 bg-gradient-to-r from-white/30 to-transparent pointer-events-none z-0"
+            style={{ width: clip.transition.duration * zoom }}
+          >
+              <div className="absolute top-0 left-0 w-0 h-0 border-t-[8px] border-l-[8px] border-t-white/40 border-l-transparent" />
+          </div>
+      )}
+
       {(clip.type === 'video' || clip.type === 'image' || clip.type === 'text') && (
         <div className={clsx(
             "absolute top-1 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono z-20 pointer-events-none border backdrop-blur-sm transition-colors",

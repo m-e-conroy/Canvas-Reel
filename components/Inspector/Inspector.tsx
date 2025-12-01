@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { Clip, Keyframe } from '../../types';
-import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash, FlipHorizontal, FlipVertical } from 'lucide-react';
+import { Clip, Keyframe, TransitionType } from '../../types';
+import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash, FlipHorizontal, FlipVertical, Wand2 } from 'lucide-react';
 import clsx from 'clsx';
 
 // ... PropertyControl component ...
@@ -173,6 +173,19 @@ const CLIP_COLORS = [
 
 const FONTS = ['Inter', 'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana'];
 
+const TRANSITION_TYPES: { label: string; value: TransitionType }[] = [
+    { label: 'None', value: 'none' },
+    { label: 'Fade In', value: 'fade' },
+    { label: 'Slide Right (In)', value: 'slide-right' },
+    { label: 'Slide Left (In)', value: 'slide-left' },
+    { label: 'Slide Up (In)', value: 'slide-up' },
+    { label: 'Slide Down (In)', value: 'slide-down' },
+    { label: 'Wipe Right', value: 'wipe-right' },
+    { label: 'Wipe Left', value: 'wipe-left' },
+    { label: 'Wipe Up', value: 'wipe-up' },
+    { label: 'Wipe Down', value: 'wipe-down' },
+];
+
 export const Inspector: React.FC = () => {
   const { selectedClipIds, getClip, updateClip, removeSelectedClips, deselectAll, currentTime } = useStore();
   
@@ -343,6 +356,52 @@ export const Inspector: React.FC = () => {
                 />
             </div>
         )}
+
+        {/* --- Transitions --- */}
+        <div>
+            <h3 className="text-xs font-bold text-gray-400 mb-3 border-b border-gray-800 pb-1 flex items-center gap-1">
+                <Wand2 className="w-3 h-3" />
+                Transitions
+            </h3>
+            
+            <div className="mb-3">
+                <label className="block text-xs text-gray-500 mb-1">Type</label>
+                <select
+                    value={clip.transition?.type || 'none'}
+                    onChange={(e) => updateClip(clip.id, { 
+                        transition: { 
+                            type: e.target.value as TransitionType, 
+                            duration: clip.transition?.duration || 0.5 
+                        } 
+                    })}
+                    className="w-full bg-black/30 border border-gray-700 rounded px-2 py-1.5 text-xs text-gray-200 focus:outline-none"
+                >
+                    {TRANSITION_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </select>
+            </div>
+
+            {clip.transition && clip.transition.type !== 'none' && (
+                <div className="mb-4">
+                     <label className="block text-xs text-gray-500 mb-1">Duration (s)</label>
+                     <div className="flex items-center gap-2">
+                         <input 
+                            type="range"
+                            min={0.1}
+                            max={Math.min(2.0, clip.duration)}
+                            step={0.1}
+                            value={clip.transition.duration}
+                            onChange={(e) => updateClip(clip.id, { 
+                                transition: { ...clip.transition!, duration: parseFloat(e.target.value) } 
+                            })}
+                            className="flex-1 h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                         />
+                         <span className="text-xs font-mono text-blue-400 w-8 text-right">
+                             {clip.transition.duration.toFixed(1)}s
+                         </span>
+                     </div>
+                </div>
+            )}
+        </div>
 
         {/* --- Timing --- */}
         <div>
