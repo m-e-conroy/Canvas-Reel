@@ -1,8 +1,12 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { Clip, Keyframe } from '../../types';
-import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move } from 'lucide-react';
+import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers } from 'lucide-react';
 import clsx from 'clsx';
+
+// ... PropertyControl component remains exactly the same, but omitted for brevity in XML if not changing logic significantly ...
+// WAIT, I need to include the full file content if I change it. 
+// I will include the full content to ensure PropertyControl is defined.
 
 interface PropertyControlProps {
   label: string;
@@ -27,7 +31,6 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
     // Determine current effective value for display
     let displayValue = value;
     
-    // Simple Interpolation for Display
     if (hasKeyframes) {
         const sorted = [...keyframes].sort((a,b) => a.time - b.time);
         if (relativeTime <= sorted[0].time) displayValue = sorted[0].value;
@@ -51,10 +54,7 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
             value: displayValue,
             easing: 'linear'
         };
-        
-        // Remove existing keyframe near this time (tolerance 0.05s)
         const filtered = keyframes.filter(k => Math.abs(k.time - relativeTime) > 0.05);
-        
         const newKeyframes = [...filtered, newKeyframe].sort((a,b) => a.time - b.time);
         
         updateClip(clip.id, {
@@ -67,8 +67,6 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
 
     const handleValueChange = (newValue: number) => {
         if (hasKeyframes) {
-            // Update active keyframe if on top of it, or add new one
-            // For simplicity in this prototype: Update logic same as Add
              const newKeyframe: Keyframe = {
                 id: crypto.randomUUID(),
                 time: relativeTime,
@@ -81,7 +79,6 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
                 keyframes: { ...clip.keyframes, [property]: newKeyframes }
             });
         } else {
-            // Update static value
             updateClip(clip.id, { [property]: newValue });
         }
     };
@@ -92,11 +89,7 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
         const startKf = keyframes.find(k => k.id === kfId);
         if(!startKf) return;
         const startTime = startKf.time;
-        
-        // We need container width to map px to seconds
-        // This is a bit hacky without ref, assuming timeline is full width of container approx 250px?
-        // Let's use logic: container is relative, we can track deltaX
-        const width = 240; // Approx px width of track
+        const width = 240; 
         
         const onMove = (mv: MouseEvent) => {
             const deltaX = mv.clientX - startX;
@@ -112,7 +105,6 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
         const onUp = () => {
             window.removeEventListener('mousemove', onMove);
             window.removeEventListener('mouseup', onUp);
-            // Sort after drag
             const currentKfs = (useStore.getState().getClip(clip.id)?.keyframes?.[property] || []);
             const sorted = [...currentKfs].sort((a,b) => a.time - b.time);
              updateClip(clip.id, {
@@ -125,8 +117,8 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
     };
 
     const removeKeyframe = (e: React.MouseEvent, kfId: string) => {
-        e.stopPropagation(); // prevent drag
-        e.preventDefault(); // prevent context menu
+        e.stopPropagation(); 
+        e.preventDefault(); 
         const updated = keyframes.filter(k => k.id !== kfId);
         updateClip(clip.id, {
             keyframes: { ...clip.keyframes, [property]: updated }
@@ -154,7 +146,6 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
                 </div>
             </div>
             
-            {/* Slider */}
             <input 
                 type="range"
                 min={min}
@@ -165,15 +156,12 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
                 className="w-full h-1 bg-gray-800 rounded-lg appearance-none cursor-pointer mb-2 accent-blue-600"
             />
 
-            {/* Mini Timeline */}
             <div className="h-4 bg-gray-900 rounded border border-gray-800 relative w-full overflow-hidden">
-                {/* Playhead */}
                 <div 
                     className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
                     style={{ left: `${(relativeTime / clip.duration) * 100}%` }}
                 />
                 
-                {/* Keyframes */}
                 {keyframes.map(kf => (
                     <div
                         key={kf.id}
@@ -189,12 +177,16 @@ const PropertyControl: React.FC<PropertyControlProps> = ({
     );
 };
 
-export const Inspector: React.FC = () => {
-  const { selectedClipId, getClip, updateClip, removeClip, setSelectedClipId, currentTime } = useStore();
-  
-  const clip = selectedClipId ? getClip(selectedClipId) : null;
+const CLIP_COLORS = [
+    '#3b82f6', '#22c55e', '#ef4444', '#eab308', 
+    '#a855f7', '#ec4899', '#f97316', '#6b7280', 
+];
 
-  if (!clip) {
+export const Inspector: React.FC = () => {
+  const { selectedClipIds, getClip, updateClip, removeSelectedClips, deselectAll, currentTime } = useStore();
+  
+  // Show different UI based on selection count
+  if (selectedClipIds.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500 text-sm p-8 text-center bg-[#1a1a1a] border-l border-gray-800">
         <Sliders className="w-12 h-12 mb-4 opacity-20" />
@@ -203,11 +195,31 @@ export const Inspector: React.FC = () => {
     );
   }
 
+  if (selectedClipIds.length > 1) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm p-8 text-center bg-[#1a1a1a] border-l border-gray-800">
+        <Layers className="w-12 h-12 mb-4 opacity-20" />
+        <p className="font-medium text-gray-200">{selectedClipIds.length} clips selected</p>
+        <p className="mt-2 text-xs text-gray-600">Multi-editing properties is not supported in this prototype.</p>
+        <button 
+            onClick={deselectAll}
+            className="mt-4 text-xs text-blue-400 hover:text-blue-300 underline"
+        >
+            Clear Selection
+        </button>
+      </div>
+    );
+  }
+
+  // Single Clip Mode
+  const clip = getClip(selectedClipIds[0]);
+  if (!clip) return null;
+
   return (
     <div className="h-full bg-[#1a1a1a] border-l border-gray-800 overflow-y-auto custom-scrollbar">
       <div className="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-[#151515]">
         <h2 className="font-semibold text-sm text-gray-200">Inspector</h2>
-        <button onClick={() => setSelectedClipId(null)} className="text-gray-500 hover:text-white">
+        <button onClick={deselectAll} className="text-gray-500 hover:text-white">
           <X className="w-4 h-4" />
         </button>
       </div>
@@ -219,8 +231,35 @@ export const Inspector: React.FC = () => {
             type="text" 
             value={clip.name}
             onChange={(e) => updateClip(clip.id, { name: e.target.value })}
-            className="w-full bg-black/30 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500 transition-colors"
+            className="w-full bg-black/30 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500 transition-colors mb-3"
           />
+          
+          <div className="flex items-center gap-2">
+             <label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                 <Palette className="w-3 h-3" />
+             </label>
+             <div className="flex gap-1.5 flex-wrap">
+                 {CLIP_COLORS.map(color => (
+                     <button
+                        key={color}
+                        onClick={() => updateClip(clip.id, { color })}
+                        style={{ backgroundColor: color }}
+                        className={clsx(
+                            "w-5 h-5 rounded-full border border-gray-600 transition-transform hover:scale-110",
+                            clip.color === color && "ring-2 ring-white border-transparent"
+                        )}
+                        title={color}
+                     />
+                 ))}
+                 <button
+                    onClick={() => updateClip(clip.id, { color: undefined })}
+                    className="w-5 h-5 rounded-full border border-gray-700 bg-transparent flex items-center justify-center text-gray-500 hover:text-gray-300 hover:border-gray-500 transition-colors"
+                    title="Reset Color"
+                 >
+                     <Ban className="w-3 h-3" />
+                 </button>
+             </div>
+          </div>
         </div>
 
         <div>
@@ -293,11 +332,11 @@ export const Inspector: React.FC = () => {
 
         <div className="pt-4 border-t border-gray-800">
             <button 
-                onClick={() => removeClip(clip.id)}
+                onClick={removeSelectedClips}
                 className="w-full flex items-center justify-center gap-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 py-2.5 rounded text-sm transition-colors border border-red-900/30"
             >
                 <Trash2 className="w-4 h-4" />
-                Delete Clip
+                Delete Selected
             </button>
         </div>
       </div>

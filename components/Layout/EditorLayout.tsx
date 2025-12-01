@@ -5,20 +5,26 @@ import { PlayerCanvas } from '../Player/PlayerCanvas';
 import { PlayerControls } from '../Player/PlayerControls';
 import { Timeline } from '../Timeline/Timeline';
 import { Inspector } from '../Inspector/Inspector';
-import { Film, MonitorPlay, Scissors, Trash2, ZoomIn, ZoomOut } from 'lucide-react';
+import { Film, MonitorPlay, Scissors, Trash2, ZoomIn, ZoomOut, Copy, Group, Ungroup, Link, Unlink } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
 export const EditorLayout: React.FC = () => {
   const { 
     splitClip, 
-    removeClip, 
-    selectedClipId, 
+    removeSelectedClips, 
+    duplicateSelectedClips,
+    groupSelectedClips,
+    ungroupSelectedClips,
+    selectedClipIds, 
     zoom, 
     setZoom 
   } = useStore();
 
   const handleZoomIn = () => setZoom(Math.min(200, zoom * 1.2));
   const handleZoomOut = () => setZoom(Math.max(1, zoom / 1.2));
+
+  const hasSelection = selectedClipIds.length > 0;
+  const hasMultiple = selectedClipIds.length > 1;
 
   return (
     <div className="flex flex-col h-screen w-full bg-[#0f0f0f] text-gray-200 overflow-hidden">
@@ -64,22 +70,51 @@ export const EditorLayout: React.FC = () => {
                 <div className="flex items-center gap-1">
                     <button
                         onClick={splitClip}
-                        disabled={!selectedClipId}
+                        disabled={!hasSelection}
                         title="Split Clip (S)"
                         className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                         <Scissors className="w-3.5 h-3.5" />
-                        <span className="text-xs font-medium">Split</span>
                     </button>
                     
                     <button
-                        onClick={() => selectedClipId && removeClip(selectedClipId)}
-                        disabled={!selectedClipId}
+                        onClick={duplicateSelectedClips}
+                        disabled={!hasSelection}
+                        title="Duplicate Clip"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                        <Copy className="w-3.5 h-3.5" />
+                    </button>
+                    
+                    <div className="h-4 w-px bg-gray-700 mx-1" />
+
+                    <button
+                        onClick={groupSelectedClips}
+                        disabled={!hasMultiple}
+                        title="Group Clips"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                        <Link className="w-3.5 h-3.5" />
+                    </button>
+
+                    <button
+                        onClick={ungroupSelectedClips}
+                        disabled={!hasSelection}
+                        title="Ungroup Clips"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                    >
+                        <Unlink className="w-3.5 h-3.5" />
+                    </button>
+
+                     <div className="h-4 w-px bg-gray-700 mx-1" />
+
+                    <button
+                        onClick={removeSelectedClips}
+                        disabled={!hasSelection}
                         title="Delete Clip (Del)"
                         className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-red-400 hover:bg-red-900/20 rounded-md transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
                     >
                         <Trash2 className="w-3.5 h-3.5" />
-                        <span className="text-xs font-medium">Delete</span>
                     </button>
                 </div>
             </div>

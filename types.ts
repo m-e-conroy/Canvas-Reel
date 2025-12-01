@@ -24,6 +24,8 @@ export interface Clip {
   duration: number; // Duration of the clip on the timeline
   name: string;
   type: 'video' | 'audio' | 'image';
+  color?: string; // Hex code for custom clip color
+  groupId?: string; // ID for grouping multiple clips together
   
   // Transform properties
   positionX?: number;
@@ -50,5 +52,5 @@ export interface ProjectState {
   currentTime: number; // Current playhead position in seconds
   isPlaying: boolean;
   zoom: number; // Pixels per second
-  selectedClipId: string | null;
+  selectedClipIds: string[];
 }

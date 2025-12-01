@@ -2,32 +2,36 @@ import React, { useMemo } from 'react';
 import { Clip } from '../../types';
 import { useStore } from '../../store/useStore';
 import clsx from 'clsx';
-import { Layers } from 'lucide-react';
+import { Layers, Link } from 'lucide-react';
 
 interface ClipItemProps {
   clip: Clip;
 }
 
 export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
-  const { zoom, selectedClipId, setSelectedClipId, startDrag, activeDrag, tracks } = useStore();
-  const isSelected = selectedClipId === clip.id;
-  const isDragging = activeDrag?.clipId === clip.id;
+  const { zoom, selectedClipIds, selectClip, startDrag, activeDrag, tracks } = useStore();
+  const isSelected = selectedClipIds.includes(clip.id);
+  const isDragging = activeDrag?.draggedClips.some(dc => dc.clipId === clip.id);
 
   const handleMouseDown = (e: React.MouseEvent, mode: 'move' | 'resize-left' | 'resize-right') => {
     e.stopPropagation();
     e.preventDefault();
     
-    setSelectedClipId(clip.id);
+    // Selection Logic:
+    // If Shift key is pressed, toggle selection.
+    // If normal click:
+    //    If clip is NOT already selected, select it exclusively.
+    //    If clip IS selected, keep selection (to allow dragging group).
+    if (e.shiftKey) {
+        selectClip(clip.id, true);
+    } else {
+        if (!isSelected) {
+            selectClip(clip.id, false);
+        }
+    }
     
-    startDrag({
-        clipId: clip.id,
-        mode,
-        startX: e.clientX,
-        initialStartTime: clip.startTime,
-        initialDuration: clip.duration,
-        initialStartOffset: clip.startOffset,
-        initialTrackId: clip.trackId
-    });
+    // Start drag with current mouse position
+    startDrag(clip.id, mode, e.clientX);
   };
 
   // Calculate Z-Index and Overlap status
@@ -61,24 +65,39 @@ export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
     return { zIndex, isObscured };
   }, [tracks, clip.trackId, clip.startTime, clip.duration, clip.type]);
 
+  const style: React.CSSProperties = {
+    left: clip.startTime * zoom,
+    width: clip.duration * zoom,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  if (clip.color) {
+    style.backgroundColor = `${clip.color}80`; // Add 50% opacity
+    style.borderColor = clip.color;
+  }
+
   return (
     <div
       onMouseDown={(e) => handleMouseDown(e, 'move')}
       className={clsx(
         "absolute top-1 bottom-1 rounded overflow-hidden select-none border group transition-colors",
-        clip.type === 'video' ? "bg-blue-900/50 border-blue-800" : 
-        clip.type === 'audio' ? "bg-green-900/50 border-green-800" : "bg-purple-900/50 border-purple-800",
+        !clip.color && (
+            clip.type === 'video' ? "bg-blue-900/50 border-blue-800" : 
+            clip.type === 'audio' ? "bg-green-900/50 border-green-800" : "bg-purple-900/50 border-purple-800"
+        ),
         (isSelected || isDragging) ? "ring-2 ring-white border-transparent z-10" : "hover:brightness-110",
         isDragging ? "cursor-grabbing" : "cursor-grab"
       )}
-      style={{
-        left: clip.startTime * zoom,
-        width: clip.duration * zoom,
-        zIndex: isDragging ? 50 : undefined
-      }}
+      style={style}
     >
-      <div className="px-2 py-1 text-xs text-white/90 truncate font-medium relative z-10 pointer-events-none pr-12">
-        {clip.name}
+      <div className="px-2 py-1 flex flex-col relative z-10 pointer-events-none pr-12 gap-0.5">
+        <div className="text-xs text-white/90 truncate font-medium flex items-center gap-1 leading-tight">
+            {clip.groupId && <Link className="w-3 h-3 text-white/70 shrink-0" />}
+            {clip.name}
+        </div>
+        <div className="text-[10px] text-white/60 truncate font-mono leading-tight">
+            {clip.duration.toFixed(2)}s
+        </div>
       </div>
       
       {/* Waveform/Thumbnails visualization placeholder */}
@@ -95,7 +114,8 @@ export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
         </div>
       )}
 
-      {/* Resize Handles - Only visible/active when selected */}
+      {/* Resize Handles - Only visible/active when selected AND only single select for now, 
+          or resize whole group if edges align? For now, only show resize if single select or PRIMARY selected */}
       {isSelected && !isDragging && (
           <>
             {/* Left Handle */}

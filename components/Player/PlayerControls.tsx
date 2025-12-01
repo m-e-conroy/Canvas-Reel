@@ -3,7 +3,7 @@ import { useStore } from '../../store/useStore';
 import { Play, Pause, SkipBack, SkipForward, MonitorUp } from 'lucide-react';
 
 export const PlayerControls: React.FC = () => {
-  const { isPlaying, setIsPlaying, currentTime, setCurrentTime, duration, splitClip, removeClip, selectedClipId } = useStore();
+  const { isPlaying, setIsPlaying, currentTime, setCurrentTime, duration, splitClip, removeSelectedClips, selectedClipIds } = useStore();
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -20,8 +20,8 @@ export const PlayerControls: React.FC = () => {
       }
       
       // Delete shortcut 'Delete' or 'Backspace'
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId && (e.target as HTMLElement).tagName !== 'INPUT') {
-          removeClip(selectedClipId);
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipIds.length > 0 && (e.target as HTMLElement).tagName !== 'INPUT') {
+          removeSelectedClips();
       }
       
       // Toggle Playback 'Space'
@@ -33,7 +33,7 @@ export const PlayerControls: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [splitClip, isPlaying, setIsPlaying, selectedClipId, removeClip]);
+  }, [splitClip, isPlaying, setIsPlaying, selectedClipIds, removeSelectedClips]);
 
   const handleExport = () => {
       // Mock Export

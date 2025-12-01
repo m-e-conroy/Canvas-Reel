@@ -1,14 +1,19 @@
 import { create } from 'zustand';
 import { Asset, Clip, Track } from '../types';
 
-interface DragSession {
+interface DraggedClipState {
   clipId: string;
-  mode: 'move' | 'resize-left' | 'resize-right';
-  startX: number;
   initialStartTime: number;
+  initialTrackId: string;
   initialDuration: number;
   initialStartOffset: number;
-  initialTrackId: string;
+}
+
+interface DragSession {
+  mode: 'move' | 'resize-left' | 'resize-right';
+  startX: number;
+  primaryClipId: string; // The specific clip being interacted with
+  draggedClips: DraggedClipState[]; // All clips moving (selection or group)
 }
 
 interface EditorState {
@@ -23,7 +28,7 @@ interface EditorState {
   zoom: number; // Pixels per second
   
   // Selection & Interaction
-  selectedClipId: string | null;
+  selectedClipIds: string[];
   activeDrag: DragSession | null;
 
   // Actions
@@ -32,16 +37,26 @@ interface EditorState {
   updateTrack: (id: string, updates: Partial<Track>) => void;
   addClip: (clip: Clip) => void;
   updateClip: (id: string, updates: Partial<Clip>) => void;
+  
+  // Multi-Selection Actions
+  selectClip: (id: string, toggle?: boolean, multi?: boolean) => void;
+  deselectAll: () => void;
+  
+  // Editing Actions
   splitClip: () => void;
   removeClip: (id: string) => void;
+  removeSelectedClips: () => void;
+  duplicateSelectedClips: () => void;
+  groupSelectedClips: () => void;
+  ungroupSelectedClips: () => void;
+
   setTracks: (tracks: Track[]) => void;
   setCurrentTime: (time: number) => void;
   setIsPlaying: (isPlaying: boolean) => void;
   setZoom: (zoom: number) => void;
-  setSelectedClipId: (id: string | null) => void;
   
   // Drag Actions
-  startDrag: (session: DragSession) => void;
+  startDrag: (clipId: string, mode: DragSession['mode'], startX: number) => void;
   stopDrag: () => void;
   
   // Helpers
@@ -59,10 +74,10 @@ export const useStore = create<EditorState>((set, get) => ({
   assets: [],
   tracks: initialTracks,
   currentTime: 0,
-  duration: 300, // 5 minutes default
+  duration: 300, 
   isPlaying: false,
-  zoom: 10, // 10px per second default
-  selectedClipId: null,
+  zoom: 10, 
+  selectedClipIds: [],
   activeDrag: null,
 
   addAsset: (asset) => set((state) => ({ assets: [...state.assets, asset] })),
@@ -83,12 +98,56 @@ export const useStore = create<EditorState>((set, get) => ({
     return { tracks: newTracks };
   }),
 
+  selectClip: (id, toggle = false) => set((state) => {
+    // 1. Find the clip and check for Group ID
+    let groupIdsToSelect = [id];
+    let clipGroup: string | undefined;
+    
+    // Helper to find clip
+    for (const t of state.tracks) {
+        const c = t.clips.find(clip => clip.id === id);
+        if (c) {
+            clipGroup = c.groupId;
+            break;
+        }
+    }
+
+    // If part of a group, select all group members
+    if (clipGroup) {
+        state.tracks.forEach(t => {
+            t.clips.forEach(c => {
+                if (c.groupId === clipGroup) {
+                    if (!groupIdsToSelect.includes(c.id)) groupIdsToSelect.push(c.id);
+                }
+            });
+        });
+    }
+
+    if (toggle) {
+        // Toggle logic
+        const current = new Set(state.selectedClipIds);
+        const allSelected = groupIdsToSelect.every(gid => current.has(gid));
+        
+        if (allSelected) {
+            groupIdsToSelect.forEach(gid => current.delete(gid));
+        } else {
+            groupIdsToSelect.forEach(gid => current.add(gid));
+        }
+        return { selectedClipIds: Array.from(current) };
+    } else {
+        // Exclusive select
+        return { selectedClipIds: groupIdsToSelect };
+    }
+  }),
+
+  deselectAll: () => set({ selectedClipIds: [] }),
+
   updateClip: (id, updates) => set((state) => {
     // If trackId is changing, we need to move the clip between arrays
     if (updates.trackId !== undefined) {
       const currentClip = get().getClip(id);
       if (!currentClip || currentClip.trackId === updates.trackId) {
-        // Simple update if trackId isn't changing or clip invalid
+        // Simple update
         const newTracks = state.tracks.map(t => ({
           ...t,
           clips: t.clips.map(c => c.id === id ? { ...c, ...updates } : c)
@@ -99,7 +158,6 @@ export const useStore = create<EditorState>((set, get) => ({
       // Moving tracks
       let clipToMove: Clip | null = null;
       
-      // 1. Remove from old track
       const tracksAfterRemove = state.tracks.map(t => {
         const found = t.clips.find(c => c.id === id);
         if (found) {
@@ -109,9 +167,8 @@ export const useStore = create<EditorState>((set, get) => ({
         return t;
       });
 
-      if (!clipToMove) return {}; // Should not happen
+      if (!clipToMove) return {};
 
-      // 2. Add to new track with updates
       const updatedClip = { ...clipToMove, ...updates } as Clip;
       
       const tracksAfterAdd = tracksAfterRemove.map(t => {
@@ -133,43 +190,54 @@ export const useStore = create<EditorState>((set, get) => ({
   }),
 
   splitClip: () => set((state) => {
-    const { selectedClipId, currentTime } = state;
-    if (!selectedClipId) return {};
+    const { selectedClipIds, currentTime } = state;
+    if (selectedClipIds.length === 0) return {};
 
-    const newTracks = state.tracks.map(track => {
-      const clipIndex = track.clips.findIndex(c => c.id === selectedClipId);
-      if (clipIndex === -1) return track;
+    let newTracks = [...state.tracks];
+    let newSelection: string[] = [];
 
-      const clip = track.clips[clipIndex];
-
-      if (currentTime <= clip.startTime + 0.1 || currentTime >= clip.startTime + clip.duration - 0.1) {
-        return track;
-      }
-
-      const splitDelta = currentTime - clip.startTime;
-
-      const newClip: Clip = {
-        ...clip,
-        id: crypto.randomUUID(),
-        startTime: currentTime,
-        startOffset: clip.startOffset + splitDelta,
-        duration: clip.duration - splitDelta,
-        name: clip.name
-      };
-
-      const updatedOriginalClip = {
-        ...clip,
-        duration: splitDelta
-      };
-
-      const newClips = [...track.clips];
-      newClips[clipIndex] = updatedOriginalClip;
-      newClips.splice(clipIndex + 1, 0, newClip);
-
-      return { ...track, clips: newClips };
+    // Process all selected clips
+    selectedClipIds.forEach(clipId => {
+        newTracks = newTracks.map(track => {
+            const clipIndex = track.clips.findIndex(c => c.id === clipId);
+            if (clipIndex === -1) return track;
+      
+            const clip = track.clips[clipIndex];
+      
+            // Validate cut point
+            if (currentTime <= clip.startTime + 0.1 || currentTime >= clip.startTime + clip.duration - 0.1) {
+              return track;
+            }
+      
+            const splitDelta = currentTime - clip.startTime;
+      
+            const newClip: Clip = {
+              ...clip,
+              id: crypto.randomUUID(),
+              startTime: currentTime,
+              startOffset: clip.startOffset + splitDelta,
+              duration: clip.duration - splitDelta,
+              // Keep groupId if present, so split parts stay grouped? 
+              // Usually split parts stay in the group.
+              groupId: clip.groupId 
+            };
+      
+            const updatedOriginalClip = {
+              ...clip,
+              duration: splitDelta
+            };
+      
+            const newClips = [...track.clips];
+            newClips[clipIndex] = updatedOriginalClip;
+            newClips.splice(clipIndex + 1, 0, newClip);
+            
+            // We lose selection of original, but maybe select both?
+            // Let's just deselect to avoid confusion or keep logic simple
+            return { ...track, clips: newClips };
+        });
     });
 
-    return { tracks: newTracks, selectedClipId: null };
+    return { tracks: newTracks, selectedClipIds: [] };
   }),
 
   removeClip: (id) => set((state) => {
@@ -177,16 +245,107 @@ export const useStore = create<EditorState>((set, get) => ({
       ...t,
       clips: t.clips.filter(c => c.id !== id)
     }));
-    return { tracks: newTracks, selectedClipId: state.selectedClipId === id ? null : state.selectedClipId };
+    return { tracks: newTracks, selectedClipIds: state.selectedClipIds.filter(sid => sid !== id) };
+  }),
+
+  removeSelectedClips: () => set((state) => {
+      const newTracks = state.tracks.map(t => ({
+          ...t,
+          clips: t.clips.filter(c => !state.selectedClipIds.includes(c.id))
+      }));
+      return { tracks: newTracks, selectedClipIds: [] };
+  }),
+
+  duplicateSelectedClips: () => set((state) => {
+      const newTracks = [...state.tracks];
+      const newSelection: string[] = [];
+
+      state.selectedClipIds.forEach(id => {
+          // Locate clip
+          for (let i = 0; i < newTracks.length; i++) {
+              const track = newTracks[i];
+              const clip = track.clips.find(c => c.id === id);
+              if (clip) {
+                  const newClip: Clip = {
+                      ...clip,
+                      id: crypto.randomUUID(),
+                      startTime: clip.startTime + clip.duration, // Place immediately after
+                      groupId: undefined // Don't auto-group duplicates with original
+                  };
+                  // Add to track
+                  track.clips.push(newClip);
+                  newSelection.push(newClip.id);
+                  break; 
+              }
+          }
+      });
+      
+      // Update tracks and select the new copies
+      return { tracks: newTracks, selectedClipIds: newSelection };
+  }),
+
+  groupSelectedClips: () => set((state) => {
+      if (state.selectedClipIds.length < 2) return {};
+      const newGroupId = crypto.randomUUID();
+      
+      const newTracks = state.tracks.map(t => ({
+          ...t,
+          clips: t.clips.map(c => state.selectedClipIds.includes(c.id) ? { ...c, groupId: newGroupId } : c)
+      }));
+      return { tracks: newTracks };
+  }),
+
+  ungroupSelectedClips: () => set((state) => {
+      if (state.selectedClipIds.length === 0) return {};
+      
+      const newTracks = state.tracks.map(t => ({
+          ...t,
+          clips: t.clips.map(c => state.selectedClipIds.includes(c.id) ? { ...c, groupId: undefined } : c)
+      }));
+      return { tracks: newTracks };
   }),
 
   setTracks: (tracks) => set({ tracks }),
   setCurrentTime: (time) => set({ currentTime: Math.max(0, time) }),
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom }),
-  setSelectedClipId: (id) => set({ selectedClipId: id }),
 
-  startDrag: (session) => set({ activeDrag: session }),
+  startDrag: (clipId, mode, startX) => set((state) => {
+      // Logic: 
+      // If clipId is in selectedClipIds, move ALL selected clips.
+      // If clipId is NOT in selection, we probably should have selected it on mousedown, 
+      // but if not, treat it as single drag (or auto-select it).
+      // Assuming MouseDown handled selection:
+      
+      const isSelected = state.selectedClipIds.includes(clipId);
+      const clipsToDragIds = isSelected ? state.selectedClipIds : [clipId];
+
+      const draggedClips: DraggedClipState[] = [];
+
+      state.tracks.forEach(track => {
+          track.clips.forEach(clip => {
+              if (clipsToDragIds.includes(clip.id)) {
+                  draggedClips.push({
+                      clipId: clip.id,
+                      initialStartTime: clip.startTime,
+                      initialTrackId: clip.trackId,
+                      initialDuration: clip.duration,
+                      initialStartOffset: clip.startOffset
+                  });
+              }
+          });
+      });
+
+      return {
+          activeDrag: {
+              mode,
+              startX,
+              primaryClipId: clipId,
+              draggedClips
+          }
+      };
+  }),
+
   stopDrag: () => set({ activeDrag: null }),
 
   getClip: (id) => {
