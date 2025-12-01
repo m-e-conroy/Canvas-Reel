@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { Asset, Clip, Track } from '../types';
+import { Asset, Clip, Track, Marker } from '../types';
 
 interface DraggedClipState {
   clipId: string;
@@ -21,6 +21,7 @@ interface EditorState {
   // Data
   assets: Asset[];
   tracks: Track[];
+  markers: Marker[];
   
   // Playback State
   currentTime: number;
@@ -30,6 +31,7 @@ interface EditorState {
   
   // Selection & Interaction
   selectedClipIds: string[];
+  selectedMarkerId: string | null;
   activeDrag: DragSession | null;
 
   // Actions
@@ -39,6 +41,12 @@ interface EditorState {
   addClip: (clip: Clip) => void;
   updateClip: (id: string, updates: Partial<Clip>) => void;
   
+  // Marker Actions
+  addMarker: (marker: Marker) => void;
+  updateMarker: (id: string, updates: Partial<Marker>) => void;
+  removeMarker: (id: string) => void;
+  selectMarker: (id: string | null) => void;
+
   // Multi-Selection Actions
   selectClip: (id: string, toggle?: boolean, multi?: boolean) => void;
   deselectAll: () => void;
@@ -75,11 +83,13 @@ const initialTracks: Track[] = [
 export const useStore = create<EditorState>((set, get) => ({
   assets: [],
   tracks: initialTracks,
+  markers: [],
   currentTime: 0,
   duration: 300, 
   isPlaying: false,
   zoom: 10, 
   selectedClipIds: [],
+  selectedMarkerId: null,
   activeDrag: null,
 
   addAsset: (asset) => set((state) => ({ assets: [...state.assets, asset] })),
@@ -99,6 +109,24 @@ export const useStore = create<EditorState>((set, get) => ({
     });
     return { tracks: newTracks };
   }),
+
+  // Marker Actions
+  addMarker: (marker) => set((state) => ({ 
+      markers: [...state.markers, marker],
+      selectedMarkerId: marker.id,
+      selectedClipIds: [] // Auto-select new marker, deselect clips
+  })),
+  
+  updateMarker: (id, updates) => set((state) => ({
+    markers: state.markers.map(m => m.id === id ? { ...m, ...updates } : m)
+  })),
+
+  removeMarker: (id) => set((state) => ({ 
+      markers: state.markers.filter(m => m.id !== id),
+      selectedMarkerId: state.selectedMarkerId === id ? null : state.selectedMarkerId
+  })),
+
+  selectMarker: (id) => set({ selectedMarkerId: id, selectedClipIds: [] }),
 
   selectClip: (id, toggle = false) => set((state) => {
     // 1. Find the clip and check for Group ID
@@ -135,14 +163,14 @@ export const useStore = create<EditorState>((set, get) => ({
         } else {
             groupIdsToSelect.forEach(gid => current.add(gid));
         }
-        return { selectedClipIds: Array.from(current) };
+        return { selectedClipIds: Array.from(current), selectedMarkerId: null };
     } else {
         // Exclusive select
-        return { selectedClipIds: groupIdsToSelect };
+        return { selectedClipIds: groupIdsToSelect, selectedMarkerId: null };
     }
   }),
 
-  deselectAll: () => set({ selectedClipIds: [] }),
+  deselectAll: () => set({ selectedClipIds: [], selectedMarkerId: null }),
 
   updateClip: (id, updates) => set((state) => {
     // If trackId is changing, we need to move the clip between arrays

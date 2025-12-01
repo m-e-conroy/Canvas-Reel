@@ -1,7 +1,8 @@
+
 import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { Clip, Keyframe, TransitionType } from '../../types';
-import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash, FlipHorizontal, FlipVertical, Wand2 } from 'lucide-react';
+import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash, FlipHorizontal, FlipVertical, Wand2, Flag } from 'lucide-react';
 import clsx from 'clsx';
 
 // ... PropertyControl component ...
@@ -187,13 +188,85 @@ const TRANSITION_TYPES: { label: string; value: TransitionType }[] = [
 ];
 
 export const Inspector: React.FC = () => {
-  const { selectedClipIds, getClip, updateClip, removeSelectedClips, deselectAll, currentTime } = useStore();
+  const { selectedClipIds, getClip, updateClip, removeSelectedClips, deselectAll, currentTime, selectedMarkerId, markers, updateMarker, removeMarker } = useStore();
   
+  // --- Marker Inspector ---
+  const selectedMarker = markers.find(m => m.id === selectedMarkerId);
+  if (selectedMarker) {
+      return (
+        <div className="h-full bg-[#1a1a1a] border-l border-gray-800 overflow-y-auto custom-scrollbar">
+            <div className="h-12 border-b border-gray-800 flex items-center justify-between px-4 bg-[#151515]">
+                <h2 className="font-semibold text-sm text-gray-200 flex items-center gap-2">
+                    <Flag className="w-4 h-4 text-yellow-500" />
+                    Marker Properties
+                </h2>
+                <button onClick={deselectAll} className="text-gray-500 hover:text-white">
+                    <X className="w-4 h-4" />
+                </button>
+            </div>
+            
+            <div className="p-4 space-y-6">
+                <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Label</label>
+                    <input 
+                        type="text" 
+                        value={selectedMarker.label}
+                        onChange={(e) => updateMarker(selectedMarker.id, { label: e.target.value })}
+                        className="w-full bg-black/30 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500 transition-colors mb-3"
+                    />
+                    
+                     <div className="flex items-center gap-2">
+                        <label className="text-xs font-medium text-gray-500">Color</label>
+                        <input
+                            type="color"
+                            value={selectedMarker.color}
+                            onChange={(e) => updateMarker(selectedMarker.id, { color: e.target.value })}
+                            className="h-6 w-full flex-1 bg-transparent cursor-pointer rounded overflow-hidden"
+                        />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Time (s)</label>
+                     <input 
+                        type="number" 
+                        step="0.01"
+                        value={selectedMarker.time}
+                        onChange={(e) => updateMarker(selectedMarker.id, { time: Math.max(0, parseFloat(e.target.value)) })}
+                        className="w-full bg-black/30 border border-gray-700 rounded px-2 py-1.5 text-sm text-gray-200 focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                </div>
+
+                <div>
+                    <label className="block text-xs font-medium text-gray-500 mb-1 uppercase tracking-wider">Notes</label>
+                    <textarea 
+                        value={selectedMarker.notes || ''}
+                        onChange={(e) => updateMarker(selectedMarker.id, { notes: e.target.value })}
+                        placeholder="Add notes..."
+                        className="w-full h-32 bg-black/30 border border-gray-700 rounded p-2 text-sm text-gray-200 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+                    />
+                </div>
+
+                <div className="pt-4 border-t border-gray-800">
+                    <button 
+                        onClick={() => removeMarker(selectedMarker.id)}
+                        className="w-full flex items-center justify-center gap-2 bg-red-900/20 hover:bg-red-900/40 text-red-400 py-2.5 rounded text-sm transition-colors border border-red-900/30"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        Delete Marker
+                    </button>
+                </div>
+            </div>
+        </div>
+      );
+  }
+
+  // --- Clip Inspector ---
   if (selectedClipIds.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-gray-500 text-sm p-8 text-center bg-[#1a1a1a] border-l border-gray-800">
         <Sliders className="w-12 h-12 mb-4 opacity-20" />
-        <p>Select a clip to view properties</p>
+        <p>Select a clip or marker to view properties</p>
       </div>
     );
   }

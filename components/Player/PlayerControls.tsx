@@ -1,9 +1,10 @@
+
 import React, { useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { Play, Pause, SkipBack, SkipForward, MonitorUp } from 'lucide-react';
 
 export const PlayerControls: React.FC = () => {
-  const { isPlaying, setIsPlaying, currentTime, setCurrentTime, duration, splitClip, removeSelectedClips, selectedClipIds } = useStore();
+  const { isPlaying, setIsPlaying, currentTime, setCurrentTime, duration, splitClip, removeSelectedClips, selectedClipIds, addMarker } = useStore();
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -15,17 +16,27 @@ export const PlayerControls: React.FC = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Split shortcut 'S'
-      if (e.key.toLowerCase() === 's' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && (e.target as HTMLElement).tagName !== 'INPUT') {
+      if (e.key.toLowerCase() === 's' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
          splitClip();
       }
       
+      // Marker shortcut 'M'
+      if (e.key.toLowerCase() === 'm' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+          addMarker({
+              id: crypto.randomUUID(),
+              time: currentTime,
+              label: 'Marker',
+              color: '#eab308'
+          });
+      }
+      
       // Delete shortcut 'Delete' or 'Backspace'
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipIds.length > 0 && (e.target as HTMLElement).tagName !== 'INPUT') {
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipIds.length > 0 && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
           removeSelectedClips();
       }
       
       // Toggle Playback 'Space'
-      if (e.code === 'Space' && (e.target as HTMLElement).tagName !== 'INPUT') {
+      if (e.code === 'Space' && (e.target as HTMLElement).tagName !== 'INPUT' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
         e.preventDefault(); // Prevent scrolling
         setIsPlaying(!isPlaying);
       }
@@ -33,7 +44,7 @@ export const PlayerControls: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [splitClip, isPlaying, setIsPlaying, selectedClipIds, removeSelectedClips]);
+  }, [splitClip, isPlaying, setIsPlaying, selectedClipIds, removeSelectedClips, addMarker, currentTime]);
 
   const handleExport = () => {
       // Mock Export

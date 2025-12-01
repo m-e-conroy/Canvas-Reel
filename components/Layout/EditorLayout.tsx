@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { AssetList } from '../AssetLibrary/AssetList';
 import { AssetUploader } from '../AssetLibrary/AssetUploader';
@@ -5,7 +6,7 @@ import { PlayerCanvas } from '../Player/PlayerCanvas';
 import { PlayerControls } from '../Player/PlayerControls';
 import { Timeline } from '../Timeline/Timeline';
 import { Inspector } from '../Inspector/Inspector';
-import { Film, MonitorPlay, Scissors, Trash2, ZoomIn, ZoomOut, Copy, Group, Ungroup, Link, Unlink } from 'lucide-react';
+import { Film, MonitorPlay, Scissors, Trash2, ZoomIn, ZoomOut, Copy, Group, Ungroup, Link, Unlink, Flag } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
 export const EditorLayout: React.FC = () => {
@@ -15,6 +16,8 @@ export const EditorLayout: React.FC = () => {
     duplicateSelectedClips,
     groupSelectedClips,
     ungroupSelectedClips,
+    addMarker,
+    currentTime,
     selectedClipIds, 
     zoom, 
     setZoom 
@@ -22,6 +25,15 @@ export const EditorLayout: React.FC = () => {
 
   const handleZoomIn = () => setZoom(Math.min(200, zoom * 1.2));
   const handleZoomOut = () => setZoom(Math.max(1, zoom / 1.2));
+  
+  const handleAddMarker = () => {
+      addMarker({
+          id: crypto.randomUUID(),
+          time: currentTime,
+          label: 'Marker',
+          color: '#eab308'
+      });
+  };
 
   const hasSelection = selectedClipIds.length > 0;
   const hasMultiple = selectedClipIds.length > 1;
@@ -119,8 +131,18 @@ export const EditorLayout: React.FC = () => {
                 </div>
             </div>
 
-            {/* Zoom Controls */}
+            {/* Right Side Tools */}
             <div className="flex items-center gap-2">
+                 <button 
+                    onClick={handleAddMarker}
+                    title="Add Marker (M)"
+                    className="p-1.5 text-yellow-500 hover:text-yellow-400 hover:bg-gray-700 rounded transition-colors"
+                >
+                    <Flag className="w-4 h-4" />
+                </button>
+                
+                <div className="h-4 w-px bg-gray-700 mx-1" />
+
                 <button 
                     onClick={handleZoomOut}
                     className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded transition-colors"

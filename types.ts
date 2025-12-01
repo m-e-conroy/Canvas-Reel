@@ -85,6 +85,14 @@ export interface Track {
   isHidden?: boolean;
 }
 
+export interface Marker {
+  id: string;
+  time: number;
+  label: string;
+  color: string;
+  notes?: string;
+}
+
 export interface ProjectState {
   duration: number; // Total timeline duration
   currentTime: number; // Current playhead position in seconds
