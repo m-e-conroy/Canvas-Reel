@@ -171,8 +171,7 @@ export const PlayerCanvas: React.FC = () => {
         let transOffsetX = 0;
         let transOffsetY = 0;
         let transOpacity = 1;
-        let wipeRect: {x: number, y: number, w: number, h: number} | null = null;
-
+        
         if (clip.transition && clip.transition.type !== 'none') {
             const tDur = clip.transition.duration;
             if (relativeTime < tDur) {
@@ -195,10 +194,6 @@ export const PlayerCanvas: React.FC = () => {
                     case 'slide-down': // Enters from top
                         transOffsetY = -canvas.height * (1 - ease);
                         break;
-                    // For wipes, we'll apply clip after transform setup, need to know bounds. 
-                    // To simplify, we wipe relative to canvas center which is current 0,0 after translate
-                    // We'll set a flag to apply clip later.
-                    // Note: Wipes here are simplified to full-screen wipes relative to clip center.
                 }
             }
         }
@@ -223,8 +218,6 @@ export const PlayerCanvas: React.FC = () => {
         if (clip.transition && clip.transition.type.startsWith('wipe') && relativeTime < clip.transition.duration) {
             const p = relativeTime / clip.transition.duration;
             const ease = 1 - Math.pow(1 - p, 3);
-            
-            // Assume clip is roughly canvas size for wipe calculations, or standard 1280x720 base
             const w = 1280; 
             const h = 720;
             
@@ -269,6 +262,9 @@ export const PlayerCanvas: React.FC = () => {
                  ctx.shadowOffsetY = 0;
              }
 
+             // Filters do not typically apply to text in this engine (optional choice)
+             // If we wanted to, we'd add ctx.filter here.
+             
              ctx.fillStyle = clip.textColor ?? '#ffffff';
              ctx.fillText(clip.text ?? 'Text', 0, 0);
 
@@ -276,6 +272,20 @@ export const PlayerCanvas: React.FC = () => {
              // Media Rendering (Video/Image)
              const media = mediaRefs.current.get(clip.assetId);
              if (media) {
+                 // Apply Filters
+                 const brightness = getInterpolatedValue(clip, 'brightness', relativeTime, 1);
+                 const contrast = getInterpolatedValue(clip, 'contrast', relativeTime, 1);
+                 const saturation = getInterpolatedValue(clip, 'saturation', relativeTime, 1);
+                 const grayscale = getInterpolatedValue(clip, 'grayscale', relativeTime, 0);
+                 const sepia = getInterpolatedValue(clip, 'sepia', relativeTime, 0);
+                 const blur = getInterpolatedValue(clip, 'blur', relativeTime, 0);
+
+                 // Apply CSS filter string
+                 // Note: Check browser support or polyfill if needed, but standard in modern browsers.
+                 if (ctx.filter !== undefined) {
+                     ctx.filter = `brightness(${brightness}) contrast(${contrast}) saturate(${saturation}) grayscale(${grayscale}) sepia(${sepia}) blur(${blur}px)`;
+                 }
+
                  let w = 0, h = 0;
                  let drawMedia: HTMLVideoElement | HTMLImageElement | null = null;
 
@@ -294,6 +304,9 @@ export const PlayerCanvas: React.FC = () => {
                  if (drawMedia) {
                       ctx.drawImage(drawMedia, -w/2, -h/2, w, h);
                  }
+                 
+                 // Reset filter for next object
+                 ctx.filter = 'none';
              }
         }
 

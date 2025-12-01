@@ -2,7 +2,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { Clip, Keyframe, TransitionType } from '../../types';
-import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash, FlipHorizontal, FlipVertical, Wand2, Flag } from 'lucide-react';
+import { X, Trash2, Sliders, Diamond, Plus, RotateCw, Move, Palette, Ban, Layers, Type, Bold, Italic, Hash, FlipHorizontal, FlipVertical, Wand2, Flag, Sun, Aperture } from 'lucide-react';
 import clsx from 'clsx';
 
 // ... PropertyControl component ...
@@ -488,6 +488,75 @@ export const Inspector: React.FC = () => {
                 </div>
             )}
         </div>
+        
+        {/* --- Filters & Color Correction --- */}
+        {(clip.type === 'video' || clip.type === 'image') && (
+            <div>
+                <h3 className="text-xs font-bold text-gray-400 mb-3 border-b border-gray-800 pb-1 flex items-center gap-1">
+                    <Sun className="w-3 h-3" />
+                    Color & Filters
+                </h3>
+                
+                {/* Presets */}
+                <div className="flex gap-2 mb-4">
+                    <button 
+                        onClick={() => updateClip(clip.id, { brightness: 1, contrast: 1, saturation: 1, grayscale: 0, sepia: 0, blur: 0 })}
+                        className="px-2 py-1 text-[10px] border border-gray-700 rounded text-gray-400 hover:text-white hover:bg-gray-800"
+                    >
+                        Reset
+                    </button>
+                    <button 
+                         onClick={() => updateClip(clip.id, { brightness: 1, contrast: 1.2, saturation: 0, grayscale: 1, sepia: 0 })}
+                        className="px-2 py-1 text-[10px] border border-gray-700 rounded text-gray-400 hover:text-white hover:bg-gray-800"
+                    >
+                        B&W
+                    </button>
+                    <button 
+                         onClick={() => updateClip(clip.id, { brightness: 1, contrast: 0.9, saturation: 0.8, grayscale: 0, sepia: 0.8 })}
+                        className="px-2 py-1 text-[10px] border border-gray-700 rounded text-gray-400 hover:text-white hover:bg-gray-800"
+                    >
+                        Sepia
+                    </button>
+                     <button 
+                         onClick={() => updateClip(clip.id, { brightness: 1.1, contrast: 1.1, saturation: 1.2, grayscale: 0, sepia: 0.2 })}
+                        className="px-2 py-1 text-[10px] border border-gray-700 rounded text-gray-400 hover:text-white hover:bg-gray-800"
+                    >
+                        Vivid
+                    </button>
+                </div>
+
+                <PropertyControl 
+                    label="Brightness" property="brightness" 
+                    value={clip.brightness ?? 1} min={0} max={2} step={0.05} 
+                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                />
+                <PropertyControl 
+                    label="Contrast" property="contrast" 
+                    value={clip.contrast ?? 1} min={0} max={2} step={0.05} 
+                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                />
+                <PropertyControl 
+                    label="Saturation" property="saturation" 
+                    value={clip.saturation ?? 1} min={0} max={2} step={0.05} 
+                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                />
+                 <PropertyControl 
+                    label="Grayscale" property="grayscale" 
+                    value={clip.grayscale ?? 0} min={0} max={1} step={0.01} 
+                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                />
+                 <PropertyControl 
+                    label="Sepia" property="sepia" 
+                    value={clip.sepia ?? 0} min={0} max={1} step={0.01} 
+                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                />
+                <PropertyControl 
+                    label="Blur" property="blur" 
+                    value={clip.blur ?? 0} min={0} max={20} step={0.5} unit="px"
+                    clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                />
+            </div>
+        )}
 
         {/* --- Timing --- */}
         <div>
@@ -519,7 +588,10 @@ export const Inspector: React.FC = () => {
         {/* --- Transform --- */}
         <div>
             <div className="flex items-center justify-between border-b border-gray-800 pb-1 mb-3">
-                <h3 className="text-xs font-bold text-gray-400">Transform & Keyframes</h3>
+                <h3 className="text-xs font-bold text-gray-400 flex items-center gap-1">
+                    <Move className="w-3 h-3" />
+                    Transform & Keyframes
+                </h3>
             </div>
             
             <div className="flex gap-2 mb-4">

@@ -89,6 +89,14 @@ export interface Clip {
   shadowBlur?: number;
   shadowOffsetX?: number;
   shadowOffsetY?: number;
+  
+  // Filters & Color Correction
+  brightness?: number; // 0 to ... (default 1)
+  contrast?: number;   // 0 to ... (default 1)
+  saturation?: number; // 0 to ... (default 1)
+  grayscale?: number;  // 0 to 1
+  sepia?: number;      // 0 to 1
+  blur?: number;       // pixels
 }
 
 export interface Track {
