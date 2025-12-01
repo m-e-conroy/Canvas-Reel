@@ -172,7 +172,20 @@ const CLIP_COLORS = [
     '#a855f7', '#ec4899', '#f97316', '#6b7280', 
 ];
 
-const FONTS = ['Inter', 'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana'];
+const FONTS = [
+    'Inter', 
+    'Roboto', 
+    'Open Sans', 
+    'Lato', 
+    'Montserrat', 
+    'Oswald', 
+    'Bebas Neue', 
+    'Playfair Display', 
+    'Lobster', 
+    'Arial', 
+    'Times New Roman', 
+    'Courier New'
+];
 
 const TRANSITION_TYPES: { label: string; value: TransitionType }[] = [
     { label: 'None', value: 'none' },
