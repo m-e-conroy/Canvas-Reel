@@ -182,7 +182,7 @@ export const PlayerCanvas: React.FC = () => {
         
         if (clip.type === 'text') {
              // Text Rendering
-             const fontSize = clip.fontSize ?? 40;
+             const fontSize = getInterpolatedValue(clip, 'fontSize', relativeTime, 40);
              const fontFamily = clip.fontFamily ?? 'Inter';
              const isBold = clip.isBold ? 'bold ' : '';
              const isItalic = clip.isItalic ? 'italic ' : '';
@@ -193,9 +193,14 @@ export const PlayerCanvas: React.FC = () => {
              
              if (clip.hasShadow) {
                  ctx.shadowColor = clip.shadowColor ?? '#000000';
-                 ctx.shadowBlur = 4;
-                 ctx.shadowOffsetX = 2;
-                 ctx.shadowOffsetY = 2;
+                 ctx.shadowBlur = getInterpolatedValue(clip, 'shadowBlur', relativeTime, 4);
+                 ctx.shadowOffsetX = getInterpolatedValue(clip, 'shadowOffsetX', relativeTime, 2);
+                 ctx.shadowOffsetY = getInterpolatedValue(clip, 'shadowOffsetY', relativeTime, 2);
+             } else {
+                 ctx.shadowColor = 'transparent';
+                 ctx.shadowBlur = 0;
+                 ctx.shadowOffsetX = 0;
+                 ctx.shadowOffsetY = 0;
              }
 
              ctx.fillStyle = clip.textColor ?? '#ffffff';

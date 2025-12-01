@@ -307,13 +307,31 @@ export const Inspector: React.FC = () => {
                 </div>
 
                 {clip.hasShadow && (
-                     <div className="mb-3">
-                        <label className="block text-xs text-gray-500 mb-1">Shadow Color</label>
-                        <input
-                            type="color"
-                            value={clip.shadowColor || '#000000'}
-                            onChange={(e) => updateClip(clip.id, { shadowColor: e.target.value })}
-                            className="h-6 w-full bg-transparent cursor-pointer rounded overflow-hidden"
+                     <div className="mt-3 pl-2 border-l-2 border-gray-800 space-y-3">
+                        <div>
+                            <label className="block text-xs text-gray-500 mb-1">Shadow Color</label>
+                            <input
+                                type="color"
+                                value={clip.shadowColor || '#000000'}
+                                onChange={(e) => updateClip(clip.id, { shadowColor: e.target.value })}
+                                className="h-6 w-full bg-transparent cursor-pointer rounded overflow-hidden"
+                            />
+                        </div>
+                        
+                        <PropertyControl 
+                            label="Blur" property="shadowBlur" 
+                            value={clip.shadowBlur ?? 4} min={0} max={50} step={1} unit="px"
+                            clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                        />
+                        <PropertyControl 
+                            label="Offset X" property="shadowOffsetX" 
+                            value={clip.shadowOffsetX ?? 2} min={-50} max={50} step={1} unit="px"
+                            clip={clip} currentTime={currentTime} updateClip={updateClip} 
+                        />
+                        <PropertyControl 
+                            label="Offset Y" property="shadowOffsetY" 
+                            value={clip.shadowOffsetY ?? 2} min={-50} max={50} step={1} unit="px"
+                            clip={clip} currentTime={currentTime} updateClip={updateClip} 
                         />
                      </div>
                 )}

@@ -46,8 +46,13 @@ export interface Clip {
   textColor?: string;
   isBold?: boolean;
   isItalic?: boolean;
+  
+  // Shadow Properties
   hasShadow?: boolean;
   shadowColor?: string;
+  shadowBlur?: number;
+  shadowOffsetX?: number;
+  shadowOffsetY?: number;
 }
 
 export interface Track {
