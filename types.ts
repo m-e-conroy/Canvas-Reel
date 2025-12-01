@@ -8,6 +8,13 @@ export interface Asset {
   height?: number;
 }
 
+export interface Keyframe {
+  id: string;
+  time: number; // Relative to clip start (seconds)
+  value: number;
+  easing?: 'linear'; 
+}
+
 export interface Clip {
   id: string;
   assetId: string;
@@ -17,10 +24,16 @@ export interface Clip {
   duration: number; // Duration of the clip on the timeline
   name: string;
   type: 'video' | 'audio' | 'image';
+  
   // Transform properties
   positionX?: number;
   positionY?: number;
   scale?: number;
+  rotation?: number; // Degrees
+  opacity?: number; // 0-1
+  
+  // Keyframes
+  keyframes?: Record<string, Keyframe[]>; // e.g. { "scale": [...], "opacity": [...] }
 }
 
 export interface Track {

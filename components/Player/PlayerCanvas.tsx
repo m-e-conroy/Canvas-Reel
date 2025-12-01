@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { Asset, Clip, Track } from '../../types';
+import { Asset, Clip, Track, Keyframe } from '../../types';
 
 export const PlayerCanvas: React.FC = () => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -49,18 +49,13 @@ export const PlayerCanvas: React.FC = () => {
   }, [assets]);
 
   // Sync Logic: Decides what each media element should be doing
-  // This function reads from the refs or arguments, not hook state directly
   const syncMedia = (time: number, playing: boolean, currentTracks: Track[], currentAssets: Asset[]) => {
-      // 1. Calculate desired state for each asset
       const assetStates = new Map<string, { shouldPlay: boolean, time: number, volume: number }>();
       
-      // Default all to paused/inactive
       currentAssets.forEach(a => assetStates.set(a.id, { shouldPlay: false, time: 0, volume: 0 }));
 
-      // Determine active clips
       currentTracks.forEach(track => {
           if (track.isHidden) return;
-          
           track.clips.forEach(clip => {
              if (time >= clip.startTime && time < clip.startTime + clip.duration) {
                  const clipOffset = time - clip.startTime;
@@ -75,44 +70,61 @@ export const PlayerCanvas: React.FC = () => {
           });
       });
 
-      // 2. Apply state to DOM elements
       assetStates.forEach((state, assetId) => {
           const media = mediaRefs.current.get(assetId);
           if (!media) return;
 
           if (media instanceof HTMLVideoElement || media instanceof HTMLAudioElement) {
-              // Volume
               media.volume = state.volume;
-
-              // Play/Pause & Seek
               if (state.shouldPlay) {
-                  // If we need to play, check if we need to seek first
                   const drift = Math.abs(media.currentTime - state.time);
-                  
-                  // If drift is large (>0.3s) or media is paused, we sync. 
-                  // Otherwise we let it play naturally to preserve audio smoothness.
                   if (media.paused || drift > 0.3) {
                       if (Number.isFinite(state.time)) {
                           media.currentTime = state.time;
                       }
                       if (media.paused) {
-                          media.play().catch(e => {
-                              // Auto-play policies might block this
-                              console.warn("Autoplay blocked", e);
-                          });
+                          media.play().catch(e => console.warn("Autoplay blocked", e));
                       }
                   }
               } else {
-                  if (!media.paused) {
-                      media.pause();
-                  }
-                  // If paused, we can sync exact time for scrubbing
+                  if (!media.paused) media.pause();
                   if (!playing && Number.isFinite(state.time)) {
                       media.currentTime = state.time;
                   }
               }
           }
       });
+  };
+
+  const getInterpolatedValue = (clip: Clip, property: string, relativeTime: number, defaultValue: number): number => {
+    const keyframes = clip.keyframes?.[property];
+    
+    // If no keyframes, use static value or default
+    if (!keyframes || keyframes.length === 0) {
+        // @ts-ignore - Dynamic property access
+        const staticVal = clip[property] as number | undefined;
+        return staticVal ?? defaultValue;
+    }
+
+    // Sort keyframes by time
+    const sorted = [...keyframes].sort((a, b) => a.time - b.time);
+
+    // Before first keyframe
+    if (relativeTime <= sorted[0].time) return sorted[0].value;
+    
+    // After last keyframe
+    if (relativeTime >= sorted[sorted.length - 1].time) return sorted[sorted.length - 1].value;
+
+    // Interpolate
+    const nextIndex = sorted.findIndex(k => k.time > relativeTime);
+    const prev = sorted[nextIndex - 1];
+    const next = sorted[nextIndex];
+    
+    const range = next.time - prev.time;
+    if (range === 0) return prev.value;
+    
+    const ratio = (relativeTime - prev.time) / range;
+    return prev.value + (next.value - prev.value) * ratio;
   };
 
   // Rendering Loop (Visuals)
@@ -126,8 +138,7 @@ export const PlayerCanvas: React.FC = () => {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    // Render visible clips (Bottom to Top)
-    // Create a z-index sorted list
+    // Visible Clips Logic
     const visibleClips: { clip: Clip, track: Track }[] = [];
     [...currentTracks].reverse().forEach(track => {
         if (track.isHidden) return;
@@ -142,104 +153,89 @@ export const PlayerCanvas: React.FC = () => {
         const media = mediaRefs.current.get(clip.assetId);
         if (!media) return;
 
+        // Calculate Transforms
+        const relativeTime = time - clip.startTime;
+        const opacity = getInterpolatedValue(clip, 'opacity', relativeTime, 1);
+        const rotation = getInterpolatedValue(clip, 'rotation', relativeTime, 0);
+        const scale = getInterpolatedValue(clip, 'scale', relativeTime, 1);
+        const posX = getInterpolatedValue(clip, 'positionX', relativeTime, 0);
+        const posY = getInterpolatedValue(clip, 'positionY', relativeTime, 0);
+
+        if (opacity <= 0) return;
+
+        ctx.save();
+        ctx.globalAlpha = opacity;
+        
+        // Translate to Center + Offset
+        ctx.translate(canvas.width/2 + posX, canvas.height/2 + posY);
+        
+        // Rotate
+        ctx.rotate(rotation * Math.PI / 180);
+        
+        // Scale
+        ctx.scale(scale, scale);
+        
+        // Translate back to origin of image
+        // We draw the image centered at (0,0) in local space
+        let w = 0, h = 0;
+        let drawMedia: HTMLVideoElement | HTMLImageElement | null = null;
+
         if (clip.type === 'video' && media instanceof HTMLVideoElement) {
-            // Video Draw
-            const scale = Math.min(canvas.width / media.videoWidth, canvas.height / media.videoHeight);
-            const w = media.videoWidth * scale;
-            const h = media.videoHeight * scale;
-            const x = (canvas.width - w) / 2;
-            const y = (canvas.height - h) / 2;
-
-            const clipScale = clip.scale || 1;
-            
-            ctx.save();
-            ctx.translate(canvas.width/2, canvas.height/2);
-            ctx.scale(clipScale, clipScale);
-            ctx.translate(-canvas.width/2, -canvas.height/2);
-            
-            ctx.drawImage(media, x, y, w, h);
-            ctx.restore();
-
+             const aspectScale = Math.min(canvas.width / media.videoWidth, canvas.height / media.videoHeight);
+             w = media.videoWidth * aspectScale;
+             h = media.videoHeight * aspectScale;
+             drawMedia = media;
         } else if (clip.type === 'image' && media instanceof HTMLImageElement) {
-            // Image Draw
-            const scale = Math.min(canvas.width / media.width, canvas.height / media.height);
-            const w = media.width * scale;
-            const h = media.height * scale;
-            const x = (canvas.width - w) / 2;
-            const y = (canvas.height - h) / 2;
-
-            const clipScale = clip.scale || 1;
-
-            ctx.save();
-            ctx.translate(canvas.width/2, canvas.height/2);
-            ctx.scale(clipScale, clipScale);
-            ctx.translate(-canvas.width/2, -canvas.height/2);
-
-            ctx.drawImage(media, x, y, w, h);
-            ctx.restore();
+             const aspectScale = Math.min(canvas.width / media.width, canvas.height / media.height);
+             w = media.width * aspectScale;
+             h = media.height * aspectScale;
+             drawMedia = media;
         }
+
+        if (drawMedia) {
+             ctx.drawImage(drawMedia, -w/2, -h/2, w, h);
+        }
+
+        ctx.restore();
     });
   };
 
-  // Main Loop
   const animate = (time: number) => {
-    // Determine delta time
-    if (lastTimeRef.current === undefined) {
-        lastTimeRef.current = time;
-    }
+    if (lastTimeRef.current === undefined) lastTimeRef.current = time;
     const deltaTime = (time - lastTimeRef.current) / 1000;
     lastTimeRef.current = time;
 
-    // Get fresh state from refs
     const { isPlaying: playing, tracks: currentTracks, assets: currentAssets } = stateRef.current;
 
-    // Update logical time if playing
     if (playing) {
         playbackTimeRef.current += deltaTime;
-        // Sync React state (UI)
         setCurrentTime(playbackTimeRef.current);
     }
-
     const effectiveTime = playbackTimeRef.current;
 
-    // Sync Engine
     syncMedia(effectiveTime, playing, currentTracks, currentAssets);
-    
-    // Draw
     drawCanvas(effectiveTime, currentTracks);
     
-    // Loop
     requestRef.current = requestAnimationFrame(animate);
   };
 
-  // Effect: Manage Loop Start/Stop
   useEffect(() => {
     requestRef.current = requestAnimationFrame(animate);
-    return () => {
-        if (requestRef.current) cancelAnimationFrame(requestRef.current);
-    };
-  }, []); // Run once on mount
+    return () => { if (requestRef.current) cancelAnimationFrame(requestRef.current); };
+  }, []);
 
-  // Effect: Handle Pause cleanup
-  // When pausing, we want to make sure we sync one last time to 'pause' the videos
   useEffect(() => {
       if (!isPlaying) {
-        // Reset lastTimeRef so next play doesn't jump
         lastTimeRef.current = undefined;
         syncMedia(playbackTimeRef.current, false, tracks, assets);
       } else {
-        lastTimeRef.current = undefined; // Reset for resume
+        lastTimeRef.current = undefined;
       }
   }, [isPlaying]);
 
   return (
     <div ref={containerRef} className="flex-1 bg-black flex items-center justify-center overflow-hidden relative shadow-lg">
-      <canvas
-        ref={canvasRef}
-        width={1280}
-        height={720}
-        className="max-w-full max-h-full aspect-video shadow-2xl bg-[#050505]"
-      />
+      <canvas ref={canvasRef} width={1280} height={720} className="max-w-full max-h-full aspect-video shadow-2xl bg-[#050505]" />
     </div>
   );
 };
