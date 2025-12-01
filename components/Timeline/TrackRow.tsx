@@ -40,15 +40,12 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(({ track }) => {
     const asset = assets.find(a => a.id === assetId);
     if (!asset) return;
 
-    // Strict type check: Video track accepts Video/Image, Audio track accepts Audio
-    // For now, let's keep it simple: Video/Image -> Video Track, Audio -> Audio Track
     const isCompatible = 
         (track.type === 'video' && (asset.type === 'video' || asset.type === 'image')) ||
         (track.type === 'audio' && asset.type === 'audio');
 
     if (!isCompatible) return;
 
-    // Calculate start time based on drop position
     const rect = e.currentTarget.getBoundingClientRect();
     const offsetX = e.clientX - rect.left;
     const startTime = Math.max(0, offsetX / zoom);
@@ -69,9 +66,12 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(({ track }) => {
   };
 
   return (
-    <div className={clsx("flex border-b border-gray-800 bg-[#151515]", track.isHidden && "opacity-60 grayscale")}>
+    <div 
+      className={clsx("flex border-b border-gray-800 bg-[#151515]", track.isHidden && "opacity-60 grayscale")}
+      data-track-id={track.id}
+      data-track-type={track.type}
+    >
       {/* Track Header - Sticky Left */}
-      {/* z-40 ensures it stays above clips and the playhead line (z-30) */}
       <div className="w-64 shrink-0 bg-[#1a1a1a] border-r border-gray-800 p-3 flex flex-col justify-center gap-2 z-40 sticky left-0 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-between text-gray-300">
             <div className="flex items-center gap-2">
@@ -114,7 +114,6 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(({ track }) => {
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
-        {/* Grid lines background */}
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#222_1px,transparent_1px)] bg-[size:100px_100%] opacity-20 pointer-events-none" />
         
         {track.clips.map(clip => (

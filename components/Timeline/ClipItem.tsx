@@ -1,110 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { Clip } from '../../types';
 import { useStore } from '../../store/useStore';
 import clsx from 'clsx';
+import { Layers } from 'lucide-react';
 
 interface ClipItemProps {
   clip: Clip;
 }
 
-type DragMode = 'move' | 'resize-left' | 'resize-right' | null;
-
 export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
-  const { zoom, selectedClipId, setSelectedClipId, updateClip, assets } = useStore();
+  const { zoom, selectedClipId, setSelectedClipId, startDrag, activeDrag, tracks } = useStore();
   const isSelected = selectedClipId === clip.id;
-  
-  // Find the source asset to know max duration limits
-  const asset = assets.find(a => a.id === clip.assetId);
-  const maxSourceDuration = asset ? asset.duration : Infinity;
+  const isDragging = activeDrag?.clipId === clip.id;
 
-  // Dragging state
-  const [dragMode, setDragMode] = useState<DragMode>(null);
-  const [dragStartX, setDragStartX] = useState(0);
-  
-  // Snapshot of state at start of drag
-  const [initialState, setInitialState] = useState({ 
-      startTime: 0, 
-      duration: 0, 
-      startOffset: 0 
-  });
-
-  const handleMouseDown = (e: React.MouseEvent, mode: DragMode) => {
+  const handleMouseDown = (e: React.MouseEvent, mode: 'move' | 'resize-left' | 'resize-right') => {
     e.stopPropagation();
+    e.preventDefault();
+    
     setSelectedClipId(clip.id);
-    setDragMode(mode);
-    setDragStartX(e.clientX);
-    setInitialState({
-        startTime: clip.startTime,
-        duration: clip.duration,
-        startOffset: clip.startOffset
+    
+    startDrag({
+        clipId: clip.id,
+        mode,
+        startX: e.clientX,
+        initialStartTime: clip.startTime,
+        initialDuration: clip.duration,
+        initialStartOffset: clip.startOffset,
+        initialTrackId: clip.trackId
     });
   };
 
-  useEffect(() => {
-      if (!dragMode) return;
+  // Calculate Z-Index and Overlap status
+  const { zIndex, isObscured } = useMemo(() => {
+    const trackIndex = tracks.findIndex(t => t.id === clip.trackId);
+    if (trackIndex === -1) return { zIndex: 0, isObscured: false };
 
-      const onMouseMove = (e: MouseEvent) => {
-          const pixelDelta = e.clientX - dragStartX;
-          const timeDelta = pixelDelta / zoom;
+    // Z-Index: Track 0 is Top (Highest Z)
+    const zIndex = tracks.length - trackIndex;
 
-          if (dragMode === 'move') {
-              const newTime = Math.max(0, initialState.startTime + timeDelta);
-              updateClip(clip.id, { startTime: newTime });
-          } 
-          else if (dragMode === 'resize-right') {
-              // Calculate raw new duration
-              let newDuration = initialState.duration + timeDelta;
-              
-              // 1. Minimum duration check (e.g. 0.1s)
-              newDuration = Math.max(0.1, newDuration);
-              
-              // 2. Maximum source duration check
-              // The end of the clip (startOffset + duration) cannot exceed the source media length
-              const maxAvailableDuration = maxSourceDuration - initialState.startOffset;
-              newDuration = Math.min(newDuration, maxAvailableDuration);
-
-              updateClip(clip.id, { duration: newDuration });
-          } 
-          else if (dragMode === 'resize-left') {
-              // Moving left handle changes StartTime, Duration, AND StartOffset
-              // If we drag right (positive delta): StartTime increases, Duration decreases, Offset increases
-              
-              let effectiveDelta = timeDelta;
-
-              // 1. Check max extension left (StartOffset cannot be < 0)
-              // If dragging left (negative delta), we can't go further back than startOffset 0
-              if (initialState.startOffset + effectiveDelta < 0) {
-                  effectiveDelta = -initialState.startOffset;
-              }
-
-              // 2. Check max compression right (Duration cannot be < 0.1)
-              if (initialState.duration - effectiveDelta < 0.1) {
-                  effectiveDelta = initialState.duration - 0.1;
-              }
-
-              const newStartTime = Math.max(0, initialState.startTime + effectiveDelta);
-              // Recalculate delta based on the clamped startTime (in case we hit timeline 0)
-              const clampedDelta = newStartTime - initialState.startTime;
-
-              updateClip(clip.id, {
-                  startTime: newStartTime,
-                  duration: initialState.duration - clampedDelta,
-                  startOffset: initialState.startOffset + clampedDelta
-              });
-          }
-      };
-
-      const onMouseUp = () => {
-          setDragMode(null);
-      };
-
-      window.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-      return () => {
-          window.removeEventListener('mousemove', onMouseMove);
-          window.removeEventListener('mouseup', onMouseUp);
-      };
-  }, [dragMode, dragStartX, initialState, zoom, clip.id, updateClip, maxSourceDuration]);
+    let isObscured = false;
+    
+    if (clip.type === 'video' || clip.type === 'image') {
+        // Check higher priority tracks (lower index)
+        for (let i = 0; i < trackIndex; i++) {
+            const track = tracks[i];
+            if (track.type === 'video' && !track.isHidden) {
+               const hasOverlap = track.clips.some(c => {
+                   const start = Math.max(c.startTime, clip.startTime);
+                   const end = Math.min(c.startTime + c.duration, clip.startTime + clip.duration);
+                   return start < end;
+               });
+               if (hasOverlap) {
+                   isObscured = true;
+                   break;
+               }
+            }
+        }
+    }
+    
+    return { zIndex, isObscured };
+  }, [tracks, clip.trackId, clip.startTime, clip.duration, clip.type]);
 
   return (
     <div
@@ -113,23 +68,35 @@ export const ClipItem: React.FC<ClipItemProps> = React.memo(({ clip }) => {
         "absolute top-1 bottom-1 rounded overflow-hidden select-none border group transition-colors",
         clip.type === 'video' ? "bg-blue-900/50 border-blue-800" : 
         clip.type === 'audio' ? "bg-green-900/50 border-green-800" : "bg-purple-900/50 border-purple-800",
-        isSelected ? "ring-2 ring-white border-transparent z-10" : "hover:brightness-110",
-        dragMode === 'move' ? "cursor-grabbing" : "cursor-grab"
+        (isSelected || isDragging) ? "ring-2 ring-white border-transparent z-10" : "hover:brightness-110",
+        isDragging ? "cursor-grabbing" : "cursor-grab"
       )}
       style={{
         left: clip.startTime * zoom,
         width: clip.duration * zoom,
+        zIndex: isDragging ? 50 : undefined
       }}
     >
-      <div className="px-2 py-1 text-xs text-white/90 truncate font-medium relative z-10 pointer-events-none">
+      <div className="px-2 py-1 text-xs text-white/90 truncate font-medium relative z-10 pointer-events-none pr-12">
         {clip.name}
       </div>
       
       {/* Waveform/Thumbnails visualization placeholder */}
       <div className="absolute inset-0 opacity-20 bg-gradient-to-b from-transparent to-black/50 pointer-events-none" />
 
+      {/* Z-Index / Obscured Indicator */}
+      {(clip.type === 'video' || clip.type === 'image') && (
+        <div className={clsx(
+            "absolute top-1 right-1 flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono z-20 pointer-events-none border backdrop-blur-sm transition-colors",
+            isObscured ? "bg-red-900/60 border-red-500/50 text-red-200" : "bg-black/40 border-white/10 text-white/50"
+        )}>
+            {isObscured && <Layers className="w-2.5 h-2.5" />}
+            <span>Z:{zIndex}</span>
+        </div>
+      )}
+
       {/* Resize Handles - Only visible/active when selected */}
-      {isSelected && (
+      {isSelected && !isDragging && (
           <>
             {/* Left Handle */}
             <div 

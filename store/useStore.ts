@@ -1,6 +1,16 @@
 import { create } from 'zustand';
 import { Asset, Clip, Track } from '../types';
 
+interface DragSession {
+  clipId: string;
+  mode: 'move' | 'resize-left' | 'resize-right';
+  startX: number;
+  initialStartTime: number;
+  initialDuration: number;
+  initialStartOffset: number;
+  initialTrackId: string;
+}
+
 interface EditorState {
   // Data
   assets: Asset[];
@@ -12,8 +22,9 @@ interface EditorState {
   isPlaying: boolean;
   zoom: number; // Pixels per second
   
-  // Selection
+  // Selection & Interaction
   selectedClipId: string | null;
+  activeDrag: DragSession | null;
 
   // Actions
   addAsset: (asset: Asset) => void;
@@ -28,6 +39,10 @@ interface EditorState {
   setIsPlaying: (isPlaying: boolean) => void;
   setZoom: (zoom: number) => void;
   setSelectedClipId: (id: string | null) => void;
+  
+  // Drag Actions
+  startDrag: (session: DragSession) => void;
+  stopDrag: () => void;
   
   // Helpers
   getClip: (id: string) => Clip | undefined;
@@ -48,6 +63,7 @@ export const useStore = create<EditorState>((set, get) => ({
   isPlaying: false,
   zoom: 10, // 10px per second default
   selectedClipId: null,
+  activeDrag: null,
 
   addAsset: (asset) => set((state) => ({ assets: [...state.assets, asset] })),
   
@@ -68,6 +84,47 @@ export const useStore = create<EditorState>((set, get) => ({
   }),
 
   updateClip: (id, updates) => set((state) => {
+    // If trackId is changing, we need to move the clip between arrays
+    if (updates.trackId !== undefined) {
+      const currentClip = get().getClip(id);
+      if (!currentClip || currentClip.trackId === updates.trackId) {
+        // Simple update if trackId isn't changing or clip invalid
+        const newTracks = state.tracks.map(t => ({
+          ...t,
+          clips: t.clips.map(c => c.id === id ? { ...c, ...updates } : c)
+        }));
+        return { tracks: newTracks };
+      } 
+
+      // Moving tracks
+      let clipToMove: Clip | null = null;
+      
+      // 1. Remove from old track
+      const tracksAfterRemove = state.tracks.map(t => {
+        const found = t.clips.find(c => c.id === id);
+        if (found) {
+          clipToMove = found;
+          return { ...t, clips: t.clips.filter(c => c.id !== id) };
+        }
+        return t;
+      });
+
+      if (!clipToMove) return {}; // Should not happen
+
+      // 2. Add to new track with updates
+      const updatedClip = { ...clipToMove, ...updates } as Clip;
+      
+      const tracksAfterAdd = tracksAfterRemove.map(t => {
+        if (t.id === updates.trackId) {
+          return { ...t, clips: [...t.clips, updatedClip] };
+        }
+        return t;
+      });
+
+      return { tracks: tracksAfterAdd };
+    }
+
+    // Standard in-place update
     const newTracks = state.tracks.map(t => ({
       ...t,
       clips: t.clips.map(c => c.id === id ? { ...c, ...updates } : c)
@@ -80,38 +137,31 @@ export const useStore = create<EditorState>((set, get) => ({
     if (!selectedClipId) return {};
 
     const newTracks = state.tracks.map(track => {
-      // Find if the selected clip is in this track
       const clipIndex = track.clips.findIndex(c => c.id === selectedClipId);
       if (clipIndex === -1) return track;
 
       const clip = track.clips[clipIndex];
 
-      // Validate split point: must be within the clip's timeframe (with small buffer)
       if (currentTime <= clip.startTime + 0.1 || currentTime >= clip.startTime + clip.duration - 0.1) {
         return track;
       }
 
       const splitDelta = currentTime - clip.startTime;
 
-      // 1. Create the Right Clip (New)
-      // It starts at currentTime, has the remaining duration, and the startOffset is shifted
       const newClip: Clip = {
         ...clip,
         id: crypto.randomUUID(),
         startTime: currentTime,
         startOffset: clip.startOffset + splitDelta,
         duration: clip.duration - splitDelta,
-        name: clip.name // Optional: could append " (Split)"
+        name: clip.name
       };
 
-      // 2. Update the Left Clip (Original)
-      // It keeps its start time but duration is shortened
       const updatedOriginalClip = {
         ...clip,
         duration: splitDelta
       };
 
-      // Insert: [Previous Clips] -> [Updated Original] -> [New Clip] -> [Next Clips]
       const newClips = [...track.clips];
       newClips[clipIndex] = updatedOriginalClip;
       newClips.splice(clipIndex + 1, 0, newClip);
@@ -119,7 +169,7 @@ export const useStore = create<EditorState>((set, get) => ({
       return { ...track, clips: newClips };
     });
 
-    return { tracks: newTracks, selectedClipId: null }; // Deselect after split to avoid confusion
+    return { tracks: newTracks, selectedClipId: null };
   }),
 
   removeClip: (id) => set((state) => {
@@ -135,6 +185,9 @@ export const useStore = create<EditorState>((set, get) => ({
   setIsPlaying: (isPlaying) => set({ isPlaying }),
   setZoom: (zoom) => set({ zoom }),
   setSelectedClipId: (id) => set({ selectedClipId: id }),
+
+  startDrag: (session) => set({ activeDrag: session }),
+  stopDrag: () => set({ activeDrag: null }),
 
   getClip: (id) => {
     const state = get();
