@@ -1,8 +1,9 @@
+
 import React, { useState } from 'react';
 import { Track } from '../../types';
 import { useStore } from '../../store/useStore';
 import { ClipItem } from './ClipItem';
-import { Video, Mic, Eye, EyeOff, Volume2, VolumeX } from 'lucide-react';
+import { Video, Mic, Eye, EyeOff, Volume2, VolumeX, Type } from 'lucide-react';
 import clsx from 'clsx';
 
 interface TrackRowProps {
@@ -75,7 +76,9 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(({ track }) => {
       <div className="w-64 shrink-0 bg-[#1a1a1a] border-r border-gray-800 p-3 flex flex-col justify-center gap-2 z-40 sticky left-0 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.5)]">
         <div className="flex items-center justify-between text-gray-300">
             <div className="flex items-center gap-2">
-                {track.type === 'video' ? <Video className="w-4 h-4 text-blue-400" /> : <Mic className="w-4 h-4 text-green-400" />}
+                {track.type === 'video' && <Video className="w-4 h-4 text-blue-400" />}
+                {track.type === 'audio' && <Mic className="w-4 h-4 text-green-400" />}
+                {track.type === 'text' && <Type className="w-4 h-4 text-purple-400" />}
                 <span className="text-sm font-medium truncate">{track.name}</span>
             </div>
             <div className="flex gap-1">

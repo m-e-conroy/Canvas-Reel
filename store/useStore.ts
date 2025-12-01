@@ -1,3 +1,4 @@
+
 import { create } from 'zustand';
 import { Asset, Clip, Track } from '../types';
 
@@ -65,6 +66,7 @@ interface EditorState {
 
 // Initial Mock Data
 const initialTracks: Track[] = [
+  { id: 'track-text', name: 'Text Overlay', type: 'text', clips: [] },
   { id: 'track-1', name: 'Video 1', type: 'video', clips: [] },
   { id: 'track-2', name: 'Video 2', type: 'video', clips: [] },
   { id: 'track-3', name: 'Audio 1', type: 'audio', clips: [] },

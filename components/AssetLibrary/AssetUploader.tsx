@@ -1,3 +1,4 @@
+
 import React, { useRef, useState } from 'react';
 import { useStore } from '../../store/useStore';
 import { db } from '../../services/db';
@@ -190,10 +191,10 @@ export const AssetUploader: React.FC = () => {
   };
 
   const handleAddText = () => {
-    // Find first video track (usually index 0 is top)
-    const track = tracks.find(t => t.type === 'video');
+    // Find text track
+    const track = tracks.find(t => t.type === 'text');
     if (!track) {
-        alert("No video track found to place text.");
+        alert("No Text track found.");
         return;
     }
 
@@ -330,7 +331,7 @@ export const AssetUploader: React.FC = () => {
                 <Plus className="w-4 h-4" />
                 Add Text Layer
             </button>
-            <p className="text-[10px] text-gray-500">Text clips are added to the first video track.</p>
+            <p className="text-[10px] text-gray-500">Text clips are added to the dedicated Text track.</p>
         </div>
       )}
     </div>

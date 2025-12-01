@@ -1,3 +1,4 @@
+
 export interface Asset {
   id: string;
   name: string;
@@ -78,7 +79,7 @@ export interface Clip {
 export interface Track {
   id: string;
   name: string;
-  type: 'video' | 'audio';
+  type: 'video' | 'audio' | 'text';
   clips: Clip[];
   isMuted?: boolean;
   isHidden?: boolean;

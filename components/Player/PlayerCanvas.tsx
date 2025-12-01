@@ -10,8 +10,8 @@ export const PlayerCanvas: React.FC = () => {
   const { tracks, assets, currentTime, isPlaying, setCurrentTime } = useStore();
   
   // Refs for animation loop state to avoid closure staleness
-  const requestRef = useRef<number>();
-  const lastTimeRef = useRef<number>();
+  const requestRef = useRef<number | undefined>(undefined);
+  const lastTimeRef = useRef<number | undefined>(undefined);
   const playbackTimeRef = useRef<number>(currentTime);
   const stateRef = useRef({ tracks, assets, isPlaying });
 
