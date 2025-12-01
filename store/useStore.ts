@@ -21,6 +21,7 @@ interface EditorState {
   updateTrack: (id: string, updates: Partial<Track>) => void;
   addClip: (clip: Clip) => void;
   updateClip: (id: string, updates: Partial<Clip>) => void;
+  splitClip: () => void;
   removeClip: (id: string) => void;
   setTracks: (tracks: Track[]) => void;
   setCurrentTime: (time: number) => void;
@@ -72,6 +73,53 @@ export const useStore = create<EditorState>((set, get) => ({
       clips: t.clips.map(c => c.id === id ? { ...c, ...updates } : c)
     }));
     return { tracks: newTracks };
+  }),
+
+  splitClip: () => set((state) => {
+    const { selectedClipId, currentTime } = state;
+    if (!selectedClipId) return {};
+
+    const newTracks = state.tracks.map(track => {
+      // Find if the selected clip is in this track
+      const clipIndex = track.clips.findIndex(c => c.id === selectedClipId);
+      if (clipIndex === -1) return track;
+
+      const clip = track.clips[clipIndex];
+
+      // Validate split point: must be within the clip's timeframe (with small buffer)
+      if (currentTime <= clip.startTime + 0.1 || currentTime >= clip.startTime + clip.duration - 0.1) {
+        return track;
+      }
+
+      const splitDelta = currentTime - clip.startTime;
+
+      // 1. Create the Right Clip (New)
+      // It starts at currentTime, has the remaining duration, and the startOffset is shifted
+      const newClip: Clip = {
+        ...clip,
+        id: crypto.randomUUID(),
+        startTime: currentTime,
+        startOffset: clip.startOffset + splitDelta,
+        duration: clip.duration - splitDelta,
+        name: clip.name // Optional: could append " (Split)"
+      };
+
+      // 2. Update the Left Clip (Original)
+      // It keeps its start time but duration is shortened
+      const updatedOriginalClip = {
+        ...clip,
+        duration: splitDelta
+      };
+
+      // Insert: [Previous Clips] -> [Updated Original] -> [New Clip] -> [Next Clips]
+      const newClips = [...track.clips];
+      newClips[clipIndex] = updatedOriginalClip;
+      newClips.splice(clipIndex + 1, 0, newClip);
+
+      return { ...track, clips: newClips };
+    });
+
+    return { tracks: newTracks, selectedClipId: null }; // Deselect after split to avoid confusion
   }),
 
   removeClip: (id) => set((state) => {

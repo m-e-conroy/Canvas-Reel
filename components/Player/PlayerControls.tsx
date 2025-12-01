@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { Play, Pause, SkipBack, SkipForward, MonitorUp } from 'lucide-react';
 
 export const PlayerControls: React.FC = () => {
-  const { isPlaying, setIsPlaying, currentTime, setCurrentTime, duration } = useStore();
+  const { isPlaying, setIsPlaying, currentTime, setCurrentTime, duration, splitClip, removeClip, selectedClipId } = useStore();
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -12,46 +12,76 @@ export const PlayerControls: React.FC = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}:${ms.toString().padStart(2, '0')}`;
   };
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Split shortcut 'S'
+      if (e.key.toLowerCase() === 's' && !e.repeat && !e.ctrlKey && !e.metaKey && !e.altKey && (e.target as HTMLElement).tagName !== 'INPUT') {
+         splitClip();
+      }
+      
+      // Delete shortcut 'Delete' or 'Backspace'
+      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedClipId && (e.target as HTMLElement).tagName !== 'INPUT') {
+          removeClip(selectedClipId);
+      }
+      
+      // Toggle Playback 'Space'
+      if (e.code === 'Space' && (e.target as HTMLElement).tagName !== 'INPUT') {
+        e.preventDefault(); // Prevent scrolling
+        setIsPlaying(!isPlaying);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [splitClip, isPlaying, setIsPlaying, selectedClipId, removeClip]);
+
   const handleExport = () => {
       // Mock Export
       alert("Export Feature Prototype:\n\nIn a production environment, this would initialize FFmpeg.wasm, load the blobs from IndexedDB, generate an FFmpeg command based on the Timeline tracks/clips, and render the output file.\n\nRequired headers: Cross-Origin-Embedder-Policy: require-corp");
   };
 
   return (
-    <div className="h-14 bg-gray-900 border-t border-gray-800 flex items-center justify-between px-4">
-      <div className="flex items-center gap-2 w-32">
-        <span className="text-blue-400 font-mono text-lg font-medium">{formatTime(currentTime)}</span>
-        <span className="text-gray-600 font-mono text-sm">/ {formatTime(duration)}</span>
+    <div className="h-14 bg-gray-900 border-t border-gray-800 flex items-center justify-between px-4 overflow-hidden">
+      {/* Left: Time */}
+      <div className="flex flex-1 items-center gap-4 min-w-0">
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-blue-400 font-mono text-lg font-medium w-[8ch]">{formatTime(currentTime)}</span>
+          <span className="text-gray-600 font-mono text-sm">/ {formatTime(duration)}</span>
+        </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      {/* Center: Transport Controls */}
+      <div className="flex items-center gap-6 justify-center shrink-0">
         <button 
             onClick={() => setCurrentTime(0)}
-            className="text-gray-400 hover:text-white transition-colors"
+            className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-full"
+            title="Jump to Start"
         >
           <SkipBack className="w-5 h-5" />
         </button>
         <button
           onClick={() => setIsPlaying(!isPlaying)}
-          className="w-10 h-10 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-colors shadow-lg shadow-blue-900/20"
+          className="w-12 h-12 rounded-full bg-blue-600 hover:bg-blue-500 text-white flex items-center justify-center transition-all shadow-lg shadow-blue-900/40 active:scale-95"
         >
-          {isPlaying ? <Pause className="w-5 h-5 fill-current" /> : <Play className="w-5 h-5 fill-current ml-0.5" />}
+          {isPlaying ? <Pause className="w-6 h-6 fill-current" /> : <Play className="w-6 h-6 fill-current ml-1" />}
         </button>
         <button 
              onClick={() => setCurrentTime(Math.min(duration, currentTime + 5))}
-             className="text-gray-400 hover:text-white transition-colors"
+             className="text-gray-400 hover:text-white transition-colors p-2 hover:bg-gray-800 rounded-full"
+             title="Jump Forward 5s"
         >
           <SkipForward className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="w-32 flex justify-end">
+      {/* Right: Export */}
+      <div className="flex-1 flex justify-end min-w-0">
         <button 
             onClick={handleExport}
-            className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-blue-400 text-xs font-bold uppercase rounded border border-gray-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-blue-400 text-xs font-bold uppercase rounded border border-gray-700 transition-colors whitespace-nowrap"
         >
-            <MonitorUp className="w-3 h-3" />
-            Export
+            <MonitorUp className="w-4 h-4" />
+            Export Video
         </button>
       </div>
     </div>

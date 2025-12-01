@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Track } from '../../types';
 import { useStore } from '../../store/useStore';
 import { ClipItem } from './ClipItem';
@@ -10,7 +10,8 @@ interface TrackRowProps {
 }
 
 export const TrackRow: React.FC<TrackRowProps> = React.memo(({ track }) => {
-  const { zoom, duration, updateTrack } = useStore();
+  const { zoom, duration, updateTrack, addClip, assets } = useStore();
+  const [isDragOver, setIsDragOver] = useState(false);
 
   const toggleMute = () => {
     updateTrack(track.id, { isMuted: !track.isMuted });
@@ -18,6 +19,53 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(({ track }) => {
 
   const toggleHidden = () => {
     updateTrack(track.id, { isHidden: !track.isHidden });
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (!isDragOver) setIsDragOver(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragOver(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragOver(false);
+
+    const assetId = e.dataTransfer.getData('assetId');
+    if (!assetId) return;
+
+    const asset = assets.find(a => a.id === assetId);
+    if (!asset) return;
+
+    // Strict type check: Video track accepts Video/Image, Audio track accepts Audio
+    // For now, let's keep it simple: Video/Image -> Video Track, Audio -> Audio Track
+    const isCompatible = 
+        (track.type === 'video' && (asset.type === 'video' || asset.type === 'image')) ||
+        (track.type === 'audio' && asset.type === 'audio');
+
+    if (!isCompatible) return;
+
+    // Calculate start time based on drop position
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetX = e.clientX - rect.left;
+    const startTime = Math.max(0, offsetX / zoom);
+
+    addClip({
+        id: crypto.randomUUID(),
+        assetId: asset.id,
+        trackId: track.id,
+        startOffset: 0,
+        startTime: startTime,
+        duration: asset.duration,
+        name: asset.name,
+        type: asset.type,
+        scale: 1,
+        positionX: 0,
+        positionY: 0
+    });
   };
 
   return (
@@ -56,7 +104,16 @@ export const TrackRow: React.FC<TrackRowProps> = React.memo(({ track }) => {
       </div>
 
       {/* Track Lane */}
-      <div className="relative h-24 min-w-full" style={{ width: duration * zoom }}>
+      <div 
+        className={clsx(
+            "relative h-24 min-w-full transition-colors duration-200",
+            isDragOver ? "bg-gray-800/80 ring-2 ring-inset ring-blue-500/50" : ""
+        )}
+        style={{ width: duration * zoom }}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         {/* Grid lines background */}
         <div className="absolute inset-0 bg-[linear-gradient(90deg,#222_1px,transparent_1px)] bg-[size:100px_100%] opacity-20 pointer-events-none" />
         
