@@ -47,6 +47,7 @@ interface EditorState {
   addAsset: (asset: Asset) => void;
   removeAsset: (id: string) => void;
   addClipFromAsset: (assetId: string) => void;
+  saveClipAsAsset: (clipId: string) => void;
 
   addTrack: (track: Track) => void;
   updateTrack: (id: string, updates: Partial<Track>) => void;
@@ -153,6 +154,44 @@ export const useStore = create<EditorState>((set, get) => ({
       };
 
       state.addClip(newClip);
+  },
+
+  saveClipAsAsset: (clipId) => {
+      const state = get();
+      const clip = state.getClip(clipId);
+      if (!clip) return;
+      
+      const originalAsset = state.assets.find(a => a.id === clip.assetId);
+      
+      // For text clips or missing assets, handle gracefully
+      if (clip.type === 'text') {
+           const newAsset: Asset = {
+              id: crypto.randomUUID(),
+              name: clip.name || 'Text Asset',
+              type: 'image', // Treat saved text as image placeholder or special type? reusing image for now or need text asset type
+              src: '', // No source for pure text
+              duration: clip.duration
+          };
+          // Text assets aren't fully supported in Asset list yet, skipping for now
+          alert("Saving Text clips as assets is not supported yet.");
+          return;
+      }
+
+      if (!originalAsset) return;
+
+      // Create a new Asset entry that points to the same media source
+      // In a real app, this might be a sub-clip reference
+      const newAsset: Asset = {
+          ...originalAsset,
+          id: crypto.randomUUID(),
+          name: `${clip.name} (Copy)`,
+          duration: clip.duration // Inherit the current trimmed duration? Or keep original?
+          // Keeping original logic for now: We are just duplicating the asset reference
+          // If we wanted to "bake" the trim, we'd need complex FFmpeg logic here.
+          // For this prototype, we just duplicate the asset so user can re-use it.
+      };
+      
+      set((state) => ({ assets: [...state.assets, newAsset] }));
   },
 
   addTrack: (track) => set((state) => ({ tracks: [...state.tracks, track] })),

@@ -1,7 +1,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { useStore } from '../../store/useStore';
-import { Copy, Trash2, Link, Unlink, Eye, EyeOff, Volume2, VolumeX, Plus } from 'lucide-react';
+import { Copy, Trash2, Link, Unlink, Eye, EyeOff, Volume2, VolumeX, Plus, FilePlus } from 'lucide-react';
 
 export const ContextMenu: React.FC = () => {
   const { 
@@ -15,7 +15,8 @@ export const ContextMenu: React.FC = () => {
     getClip,
     selectedClipIds,
     addClipFromAsset,
-    removeAsset
+    removeAsset,
+    saveClipAsAsset
   } = useStore();
   
   const menuRef = useRef<HTMLDivElement>(null);
@@ -91,6 +92,15 @@ export const ContextMenu: React.FC = () => {
                         {clip.visible === false ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         {clip.visible === false ? "Show" : "Hide"}
                     </button>
+                    {/* Save as Asset Button */}
+                    {clip.type !== 'text' && (
+                        <button 
+                            onClick={() => handleAction(() => saveClipAsAsset(clip.id))}
+                            className="w-full text-left px-3 py-2 text-sm text-gray-200 hover:bg-blue-600 flex items-center gap-2 border-t border-gray-700 mt-1 pt-2"
+                        >
+                            <FilePlus className="w-4 h-4" /> Save as Asset
+                        </button>
+                    )}
                 </>
              )
         )}
