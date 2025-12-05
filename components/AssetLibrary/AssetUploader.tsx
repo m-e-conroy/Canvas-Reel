@@ -25,13 +25,29 @@ export const AssetUploader: React.FC = () => {
   // Stock State
   const [stockQuery, setStockQuery] = useState('');
   const [stockType, setStockType] = useState<'image' | 'video'>('image');
+  const [stockProvider, setStockProvider] = useState<'pexels' | 'pixabay'>('pexels');
   const [stockResults, setStockResults] = useState<any[]>([]);
+  
+  // API Keys
   const [pexelsKey, setPexelsKey] = useState(() => localStorage.getItem('canvasreel_pexels_key') || '');
-  const [showKeyInput, setShowKeyInput] = useState(!localStorage.getItem('canvasreel_pexels_key'));
+  const [pixabayKey, setPixabayKey] = useState(() => localStorage.getItem('canvasreel_pixabay_key') || '');
+  const [showKeyInput, setShowKeyInput] = useState(false);
+
+  useEffect(() => {
+      // Check if current provider has key
+      const hasKey = stockProvider === 'pexels' ? !!pexelsKey : !!pixabayKey;
+      if (!hasKey) setShowKeyInput(true);
+  }, [stockProvider, pexelsKey, pixabayKey]);
 
   const savePexelsKey = (key: string) => {
       setPexelsKey(key);
       localStorage.setItem('canvasreel_pexels_key', key);
+      setShowKeyInput(false);
+  };
+
+  const savePixabayKey = (key: string) => {
+      setPixabayKey(key);
+      localStorage.setItem('canvasreel_pixabay_key', key);
       setShowKeyInput(false);
   };
 
@@ -307,35 +323,53 @@ export const AssetUploader: React.FC = () => {
 
   const handleStockSearch = async () => {
       if (!stockQuery.trim()) return;
-      if (!pexelsKey) {
+      const key = stockProvider === 'pexels' ? pexelsKey : pixabayKey;
+      if (!key) {
           setShowKeyInput(true);
           return;
       }
 
       setLoading(true);
-      setStatusText('Searching Pexels...');
+      setStatusText(`Searching ${stockProvider === 'pexels' ? 'Pexels' : 'Pixabay'}...`);
       setStockResults([]);
 
       try {
-          const baseUrl = stockType === 'video' ? 'https://api.pexels.com/videos/search' : 'https://api.pexels.com/v1/search';
-          const res = await fetch(`${baseUrl}?query=${encodeURIComponent(stockQuery)}&per_page=12&orientation=landscape`, {
-              headers: {
-                  Authorization: pexelsKey
-              }
-          });
-          
-          if (res.status === 401) {
-              alert("Invalid API Key");
-              setShowKeyInput(true);
-              setLoading(false);
-              return;
-          }
+          if (stockProvider === 'pexels') {
+            const baseUrl = stockType === 'video' ? 'https://api.pexels.com/videos/search' : 'https://api.pexels.com/v1/search';
+            const res = await fetch(`${baseUrl}?query=${encodeURIComponent(stockQuery)}&per_page=12&orientation=landscape`, {
+                headers: {
+                    Authorization: key
+                }
+            });
+            
+            if (res.status === 401) {
+                alert("Invalid Pexels API Key");
+                setShowKeyInput(true);
+                setLoading(false);
+                return;
+            }
 
-          const data = await res.json();
-          if (stockType === 'video') {
-              setStockResults(data.videos || []);
+            const data = await res.json();
+            if (stockType === 'video') {
+                setStockResults(data.videos || []);
+            } else {
+                setStockResults(data.photos || []);
+            }
           } else {
-              setStockResults(data.photos || []);
+            // Pixabay
+            const baseUrl = stockType === 'video' ? 'https://pixabay.com/api/videos/' : 'https://pixabay.com/api/';
+            // Pixabay uses query params for key
+            const res = await fetch(`${baseUrl}?key=${key}&q=${encodeURIComponent(stockQuery)}&per_page=12&safesearch=true`);
+            
+            if (res.status === 400 || res.status === 401) {
+                alert("Invalid Pixabay API Key");
+                setShowKeyInput(true);
+                setLoading(false);
+                return;
+            }
+
+            const data = await res.json();
+            setStockResults(data.hits || []);
           }
 
       } catch (e) {
@@ -354,14 +388,27 @@ export const AssetUploader: React.FC = () => {
           let srcUrl = '';
           let fileName = '';
 
-          if (stockType === 'video') {
-              // Get highest res mp4 that isn't massive, or just first one
-              const videoFile = item.video_files.find((v: any) => v.height === 720) || item.video_files[0];
-              srcUrl = videoFile.link;
-              fileName = `pexels_${item.id}.mp4`;
+          if (stockProvider === 'pexels') {
+            if (stockType === 'video') {
+                // Get highest res mp4 that isn't massive, or just first one
+                const videoFile = item.video_files.find((v: any) => v.height === 720) || item.video_files[0];
+                srcUrl = videoFile.link;
+                fileName = `pexels_${item.id}.mp4`;
+            } else {
+                srcUrl = item.src?.large2x || item.src?.large;
+                fileName = `pexels_${item.id}.jpg`;
+            }
           } else {
-              srcUrl = item.src?.large2x || item.src?.large;
-              fileName = `pexels_${item.id}.jpg`;
+            // Pixabay
+             if (stockType === 'video') {
+                // Pixabay video structure: item.videos.medium.url
+                const videoFile = item.videos?.medium || item.videos?.small;
+                srcUrl = videoFile?.url;
+                fileName = `pixabay_${item.id}.mp4`;
+             } else {
+                srcUrl = item.largeImageURL || item.webformatURL;
+                fileName = `pixabay_${item.id}.jpg`;
+             }
           }
 
           if (!srcUrl) {
@@ -381,6 +428,27 @@ export const AssetUploader: React.FC = () => {
           setLoading(false);
           setStatusText('');
       }
+  };
+
+  const getStockThumbnail = (item: any) => {
+      if (stockProvider === 'pexels') {
+          return stockType === 'video' ? item.image : item.src?.medium;
+      } else {
+          // Pixabay
+          if (stockType === 'video') {
+              // Construct Vimeo CDN URL from picture_id if available, otherwise userImageURL (fallback)
+              // Pattern: https://i.vimeocdn.com/video/{picture_id}_640x360.jpg
+              return item.picture_id 
+                ? `https://i.vimeocdn.com/video/${item.picture_id}_640x360.jpg` 
+                : item.userImageURL; 
+          }
+          return item.webformatURL;
+      }
+  };
+
+  const getStockDuration = (item: any) => {
+      if (stockProvider === 'pexels') return item.duration;
+      return item.duration; // Pixabay also uses 'duration'
   };
 
   return (
@@ -505,25 +573,58 @@ export const AssetUploader: React.FC = () => {
 
       {mode === 'stock' && (
           <div className="space-y-3 animate-in fade-in duration-300">
+              
+              {/* Provider Selection */}
+              <div className="flex bg-gray-900 rounded p-0.5 border border-gray-700">
+                   <button 
+                      onClick={() => { setStockProvider('pexels'); setStockResults([]); }} 
+                      className={clsx("flex-1 text-[10px] rounded py-1 transition-colors", stockProvider === 'pexels' ? "bg-gray-700 text-white" : "text-gray-400 hover:text-gray-200")}
+                   >
+                       Pexels
+                   </button>
+                   <button 
+                      onClick={() => { setStockProvider('pixabay'); setStockResults([]); }} 
+                      className={clsx("flex-1 text-[10px] rounded py-1 transition-colors", stockProvider === 'pixabay' ? "bg-gray-700 text-white" : "text-gray-400 hover:text-gray-200")}
+                   >
+                       Pixabay
+                   </button>
+              </div>
+
+              {/* API Key Input */}
               {showKeyInput && (
                   <div className="bg-gray-800/50 p-2 rounded border border-gray-700 mb-2">
                       <div className="flex items-center justify-between mb-1">
-                          <label className="text-[10px] text-gray-400">Pexels API Key</label>
-                          <a href="https://www.pexels.com/api/" target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:underline">Get Key</a>
+                          <label className="text-[10px] text-gray-400">
+                              {stockProvider === 'pexels' ? 'Pexels API Key' : 'Pixabay API Key'}
+                          </label>
+                          <a 
+                            href={stockProvider === 'pexels' ? "https://www.pexels.com/api/" : "https://pixabay.com/api/docs/"} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            className="text-[10px] text-blue-400 hover:underline"
+                          >
+                              Get Key
+                          </a>
                       </div>
                       <div className="flex gap-2">
                         <input 
                             type="password"
-                            value={pexelsKey}
-                            onChange={(e) => setPexelsKey(e.target.value)}
+                            value={stockProvider === 'pexels' ? pexelsKey : pixabayKey}
+                            onChange={(e) => stockProvider === 'pexels' ? setPexelsKey(e.target.value) : setPixabayKey(e.target.value)}
                             placeholder="Enter key..."
                             className="flex-1 bg-black/40 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
                         />
-                        <button onClick={() => savePexelsKey(pexelsKey)} className="bg-gray-700 hover:bg-gray-600 px-2 rounded text-white text-xs">Save</button>
+                        <button 
+                            onClick={() => stockProvider === 'pexels' ? savePexelsKey(pexelsKey) : savePixabayKey(pixabayKey)} 
+                            className="bg-gray-700 hover:bg-gray-600 px-2 rounded text-white text-xs"
+                        >
+                            Save
+                        </button>
                       </div>
                   </div>
               )}
 
+              {/* Type and Key Toggle */}
               <div className="flex gap-2">
                 <div className="flex bg-gray-900 rounded p-0.5 flex-1 border border-gray-700">
                      <button onClick={() => { setStockType('image'); setStockResults([]); }} className={clsx("flex-1 text-[10px] rounded py-1", stockType === 'image' ? "bg-gray-700 text-white" : "text-gray-400")}>Photos</button>
@@ -539,7 +640,7 @@ export const AssetUploader: React.FC = () => {
                         value={stockQuery}
                         onChange={(e) => setStockQuery(e.target.value)}
                         onKeyDown={(e) => e.key === 'Enter' && handleStockSearch()}
-                        placeholder={`Search ${stockType}s...`}
+                        placeholder={`Search ${stockType}s on ${stockProvider === 'pexels' ? 'Pexels' : 'Pixabay'}...`}
                         className="w-full bg-black/40 border border-gray-700 rounded-md py-1.5 pl-8 pr-2 text-sm text-white focus:border-blue-500 focus:outline-none"
                     />
                     <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-2.5" />
@@ -554,7 +655,7 @@ export const AssetUploader: React.FC = () => {
                       {stockResults.map((item: any) => (
                           <div key={item.id} className="group relative aspect-video bg-gray-800 rounded overflow-hidden border border-gray-700">
                               <img 
-                                src={stockType === 'video' ? item.image : item.src?.medium} 
+                                src={getStockThumbnail(item)} 
                                 alt="" 
                                 className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
                               />
@@ -564,7 +665,11 @@ export const AssetUploader: React.FC = () => {
                               >
                                   <Download className="w-5 h-5 text-white drop-shadow-md" />
                               </button>
-                              {stockType === 'video' && <div className="absolute bottom-1 right-1 text-[8px] bg-black/60 text-white px-1 rounded">{item.duration}s</div>}
+                              {stockType === 'video' && (
+                                  <div className="absolute bottom-1 right-1 text-[8px] bg-black/60 text-white px-1 rounded">
+                                      {getStockDuration(item)}s
+                                  </div>
+                              )}
                           </div>
                       ))}
                   </div>
