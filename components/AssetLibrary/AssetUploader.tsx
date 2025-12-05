@@ -1,8 +1,8 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useStore } from '../../store/useStore';
 import { db } from '../../services/db';
-import { Upload, FileVideo, Music, Image as ImageIcon, Loader2, Sparkles, AlertCircle, Type, Plus } from 'lucide-react';
+import { Upload, FileVideo, Music, Image as ImageIcon, Loader2, Sparkles, AlertCircle, Type, Plus, Globe, Search, Download, Key } from 'lucide-react';
 import { Asset } from '../../types';
 import { GoogleGenAI } from "@google/genai";
 import clsx from 'clsx';
@@ -11,7 +11,7 @@ export const AssetUploader: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { addAsset, addClip, tracks } = useStore();
   
-  const [mode, setMode] = useState<'upload' | 'generate' | 'text'>('upload');
+  const [mode, setMode] = useState<'upload' | 'generate' | 'text' | 'stock'>('upload');
   const [loading, setLoading] = useState(false);
   const [statusText, setStatusText] = useState('');
 
@@ -21,6 +21,19 @@ export const AssetUploader: React.FC = () => {
 
   // Text State
   const [textInput, setTextInput] = useState('New Text Layer');
+
+  // Stock State
+  const [stockQuery, setStockQuery] = useState('');
+  const [stockType, setStockType] = useState<'image' | 'video'>('image');
+  const [stockResults, setStockResults] = useState<any[]>([]);
+  const [pexelsKey, setPexelsKey] = useState(() => localStorage.getItem('canvasreel_pexels_key') || '');
+  const [showKeyInput, setShowKeyInput] = useState(!localStorage.getItem('canvasreel_pexels_key'));
+
+  const savePexelsKey = (key: string) => {
+      setPexelsKey(key);
+      localStorage.setItem('canvasreel_pexels_key', key);
+      setShowKeyInput(false);
+  };
 
   const generateThumbnail = async (file: File, type: string): Promise<Blob | undefined> => {
       if (type === 'audio') return undefined;
@@ -292,6 +305,84 @@ export const AssetUploader: React.FC = () => {
     setMode('upload'); // Switch back to view list or stay? Stay for now.
   };
 
+  const handleStockSearch = async () => {
+      if (!stockQuery.trim()) return;
+      if (!pexelsKey) {
+          setShowKeyInput(true);
+          return;
+      }
+
+      setLoading(true);
+      setStatusText('Searching Pexels...');
+      setStockResults([]);
+
+      try {
+          const baseUrl = stockType === 'video' ? 'https://api.pexels.com/videos/search' : 'https://api.pexels.com/v1/search';
+          const res = await fetch(`${baseUrl}?query=${encodeURIComponent(stockQuery)}&per_page=12&orientation=landscape`, {
+              headers: {
+                  Authorization: pexelsKey
+              }
+          });
+          
+          if (res.status === 401) {
+              alert("Invalid API Key");
+              setShowKeyInput(true);
+              setLoading(false);
+              return;
+          }
+
+          const data = await res.json();
+          if (stockType === 'video') {
+              setStockResults(data.videos || []);
+          } else {
+              setStockResults(data.photos || []);
+          }
+
+      } catch (e) {
+          console.error(e);
+          alert("Failed to search stock library.");
+      } finally {
+          setLoading(false);
+          setStatusText('');
+      }
+  };
+
+  const handleImportStock = async (item: any) => {
+      setLoading(true);
+      setStatusText('Downloading media...');
+      try {
+          let srcUrl = '';
+          let fileName = '';
+
+          if (stockType === 'video') {
+              // Get highest res mp4 that isn't massive, or just first one
+              const videoFile = item.video_files.find((v: any) => v.height === 720) || item.video_files[0];
+              srcUrl = videoFile.link;
+              fileName = `pexels_${item.id}.mp4`;
+          } else {
+              srcUrl = item.src?.large2x || item.src?.large;
+              fileName = `pexels_${item.id}.jpg`;
+          }
+
+          if (!srcUrl) {
+            throw new Error("Media source not found");
+          }
+
+          const res = await fetch(srcUrl);
+          const blob = await res.blob();
+          const file = new File([blob], fileName, { type: stockType === 'video' ? 'video/mp4' : 'image/jpeg' });
+          
+          await processFile(file);
+          alert("Imported successfully!");
+      } catch (e) {
+          console.error(e);
+          alert("Failed to download media.");
+      } finally {
+          setLoading(false);
+          setStatusText('');
+      }
+  };
+
   return (
     <div className="p-4 border-b border-gray-800 flex flex-col gap-4 bg-[#121212]">
       {/* Tabs */}
@@ -303,8 +394,15 @@ export const AssetUploader: React.FC = () => {
             Import
         </button>
         <button 
+           onClick={() => setMode('stock')}
+           className={clsx("flex-1 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1.5", mode === 'stock' ? "bg-blue-900/40 text-blue-100 shadow-sm" : "text-gray-400 hover:text-gray-200 hover:bg-gray-800")}
+        >
+            <Globe className="w-3 h-3" />
+            Stock
+        </button>
+        <button 
            onClick={() => setMode('generate')}
-           className={clsx("flex-1 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1.5", mode === 'generate' ? "bg-gradient-to-r from-blue-700 to-purple-700 text-white shadow-sm" : "text-gray-400 hover:text-gray-200 hover:bg-gray-800")}
+           className={clsx("flex-1 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center justify-center gap-1.5", mode === 'generate' ? "bg-purple-900/40 text-purple-100 shadow-sm" : "text-gray-400 hover:text-gray-200 hover:bg-gray-800")}
         >
             <Sparkles className="w-3 h-3" />
             AI Video
@@ -403,6 +501,75 @@ export const AssetUploader: React.FC = () => {
             </button>
             <p className="text-[10px] text-gray-500">Text clips are added to the dedicated Text track.</p>
         </div>
+      )}
+
+      {mode === 'stock' && (
+          <div className="space-y-3 animate-in fade-in duration-300">
+              {showKeyInput && (
+                  <div className="bg-gray-800/50 p-2 rounded border border-gray-700 mb-2">
+                      <div className="flex items-center justify-between mb-1">
+                          <label className="text-[10px] text-gray-400">Pexels API Key</label>
+                          <a href="https://www.pexels.com/api/" target="_blank" rel="noreferrer" className="text-[10px] text-blue-400 hover:underline">Get Key</a>
+                      </div>
+                      <div className="flex gap-2">
+                        <input 
+                            type="password"
+                            value={pexelsKey}
+                            onChange={(e) => setPexelsKey(e.target.value)}
+                            placeholder="Enter key..."
+                            className="flex-1 bg-black/40 border border-gray-700 rounded px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
+                        />
+                        <button onClick={() => savePexelsKey(pexelsKey)} className="bg-gray-700 hover:bg-gray-600 px-2 rounded text-white text-xs">Save</button>
+                      </div>
+                  </div>
+              )}
+
+              <div className="flex gap-2">
+                <div className="flex bg-gray-900 rounded p-0.5 flex-1 border border-gray-700">
+                     <button onClick={() => { setStockType('image'); setStockResults([]); }} className={clsx("flex-1 text-[10px] rounded py-1", stockType === 'image' ? "bg-gray-700 text-white" : "text-gray-400")}>Photos</button>
+                     <button onClick={() => { setStockType('video'); setStockResults([]); }} className={clsx("flex-1 text-[10px] rounded py-1", stockType === 'video' ? "bg-gray-700 text-white" : "text-gray-400")}>Videos</button>
+                </div>
+                <button onClick={() => setShowKeyInput(!showKeyInput)} className="p-1.5 text-gray-400 hover:text-white bg-gray-800 rounded border border-gray-700"><Key className="w-3.5 h-3.5" /></button>
+              </div>
+
+              <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input 
+                        type="text"
+                        value={stockQuery}
+                        onChange={(e) => setStockQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleStockSearch()}
+                        placeholder={`Search ${stockType}s...`}
+                        className="w-full bg-black/40 border border-gray-700 rounded-md py-1.5 pl-8 pr-2 text-sm text-white focus:border-blue-500 focus:outline-none"
+                    />
+                    <Search className="w-3.5 h-3.5 text-gray-500 absolute left-2.5 top-2.5" />
+                  </div>
+                  <button onClick={handleStockSearch} className="bg-blue-600 hover:bg-blue-500 text-white px-3 rounded-md text-sm font-medium"><Search className="w-4 h-4" /></button>
+              </div>
+
+              {loading && <div className="text-center py-4 text-gray-500"><Loader2 className="w-5 h-5 animate-spin mx-auto mb-1" />{statusText}</div>}
+
+              {!loading && stockResults.length > 0 && (
+                  <div className="grid grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-1">
+                      {stockResults.map((item: any) => (
+                          <div key={item.id} className="group relative aspect-video bg-gray-800 rounded overflow-hidden border border-gray-700">
+                              <img 
+                                src={stockType === 'video' ? item.image : item.src?.medium} 
+                                alt="" 
+                                className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
+                              />
+                              <button 
+                                onClick={() => handleImportStock(item)}
+                                className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity"
+                              >
+                                  <Download className="w-5 h-5 text-white drop-shadow-md" />
+                              </button>
+                              {stockType === 'video' && <div className="absolute bottom-1 right-1 text-[8px] bg-black/60 text-white px-1 rounded">{item.duration}s</div>}
+                          </div>
+                      ))}
+                  </div>
+              )}
+          </div>
       )}
     </div>
   );
