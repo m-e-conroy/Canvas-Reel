@@ -1,6 +1,6 @@
 
 import { create } from 'zustand';
-import { Asset, Clip, Track, Marker } from '../types';
+import { Asset, Clip, Track, Marker, ExportConfig } from '../types';
 
 interface DraggedClipState {
   clipId: string;
@@ -42,6 +42,10 @@ interface EditorState {
   selectedMarkerId: string | null;
   activeDrag: DragSession | null;
   contextMenu: ContextMenuState | null;
+
+  // Export State
+  isExportModalOpen: boolean;
+  exportConfig: ExportConfig;
 
   // Actions
   addAsset: (asset: Asset) => void;
@@ -85,6 +89,12 @@ interface EditorState {
   openContextMenu: (menu: ContextMenuState) => void;
   closeContextMenu: () => void;
   
+  // Export Actions
+  setExportModalOpen: (isOpen: boolean) => void;
+  startExport: (config: Partial<ExportConfig>) => void;
+  updateExportProgress: (progress: number) => void;
+  finishExport: () => void;
+
   // Helpers
   getClip: (id: string) => Clip | undefined;
 }
@@ -109,13 +119,21 @@ export const useStore = create<EditorState>((set, get) => ({
   selectedMarkerId: null,
   activeDrag: null,
   contextMenu: null,
+  
+  isExportModalOpen: false,
+  exportConfig: {
+      startTime: 0,
+      endTime: 10,
+      fps: 30,
+      format: 'png',
+      isExporting: false,
+      progress: 0
+  },
 
   addAsset: (asset) => set((state) => ({ assets: [...state.assets, asset] })),
   
   removeAsset: (id) => set((state) => ({ 
       assets: state.assets.filter(a => a.id !== id),
-      // Also remove clips that use this asset? For now, we keep them but they might break or show blank.
-      // Ideally we should warn or remove them. Let's just remove the asset for now.
   })),
 
   addClipFromAsset: (assetId) => {
@@ -123,14 +141,12 @@ export const useStore = create<EditorState>((set, get) => ({
       const asset = state.assets.find(a => a.id === assetId);
       if (!asset) return;
 
-      // Find compatible track
       const compatibleTrack = state.tracks.find(t => t.type === asset.type);
       if (!compatibleTrack) {
           alert("No compatible track found (Video -> Video Track, Audio -> Audio Track)");
           return;
       }
 
-      // Determine start time (end of last clip on track or 0)
       let startTime = 0;
       if (compatibleTrack.clips.length > 0) {
           const lastClip = compatibleTrack.clips.reduce((prev, current) => 
@@ -161,34 +177,19 @@ export const useStore = create<EditorState>((set, get) => ({
       const clip = state.getClip(clipId);
       if (!clip) return;
       
-      const originalAsset = state.assets.find(a => a.id === clip.assetId);
-      
-      // For text clips or missing assets, handle gracefully
       if (clip.type === 'text') {
-           const newAsset: Asset = {
-              id: crypto.randomUUID(),
-              name: clip.name || 'Text Asset',
-              type: 'image', // Treat saved text as image placeholder or special type? reusing image for now or need text asset type
-              src: '', // No source for pure text
-              duration: clip.duration
-          };
-          // Text assets aren't fully supported in Asset list yet, skipping for now
           alert("Saving Text clips as assets is not supported yet.");
           return;
       }
 
+      const originalAsset = state.assets.find(a => a.id === clip.assetId);
       if (!originalAsset) return;
 
-      // Create a new Asset entry that points to the same media source
-      // In a real app, this might be a sub-clip reference
       const newAsset: Asset = {
           ...originalAsset,
           id: crypto.randomUUID(),
           name: `${clip.name} (Copy)`,
-          duration: clip.duration // Inherit the current trimmed duration? Or keep original?
-          // Keeping original logic for now: We are just duplicating the asset reference
-          // If we wanted to "bake" the trim, we'd need complex FFmpeg logic here.
-          // For this prototype, we just duplicate the asset so user can re-use it.
+          duration: clip.duration 
       };
       
       set((state) => ({ assets: [...state.assets, newAsset] }));
@@ -210,11 +211,10 @@ export const useStore = create<EditorState>((set, get) => ({
     return { tracks: newTracks };
   }),
 
-  // Marker Actions
   addMarker: (marker) => set((state) => ({ 
       markers: [...state.markers, marker],
       selectedMarkerId: marker.id,
-      selectedClipIds: [] // Auto-select new marker, deselect clips
+      selectedClipIds: [] 
   })),
   
   updateMarker: (id, updates) => set((state) => ({
@@ -229,11 +229,9 @@ export const useStore = create<EditorState>((set, get) => ({
   selectMarker: (id) => set({ selectedMarkerId: id, selectedClipIds: [] }),
 
   selectClip: (id, toggle = false) => set((state) => {
-    // 1. Find the clip and check for Group ID
     let groupIdsToSelect = [id];
     let clipGroup: string | undefined;
     
-    // Helper to find clip
     for (const t of state.tracks) {
         const c = t.clips.find(clip => clip.id === id);
         if (c) {
@@ -242,7 +240,6 @@ export const useStore = create<EditorState>((set, get) => ({
         }
     }
 
-    // If part of a group, select all group members
     if (clipGroup) {
         state.tracks.forEach(t => {
             t.clips.forEach(c => {
@@ -254,7 +251,6 @@ export const useStore = create<EditorState>((set, get) => ({
     }
 
     if (toggle) {
-        // Toggle logic
         const current = new Set(state.selectedClipIds);
         const allSelected = groupIdsToSelect.every(gid => current.has(gid));
         
@@ -265,7 +261,6 @@ export const useStore = create<EditorState>((set, get) => ({
         }
         return { selectedClipIds: Array.from(current), selectedMarkerId: null };
     } else {
-        // Exclusive select
         return { selectedClipIds: groupIdsToSelect, selectedMarkerId: null };
     }
   }),
@@ -273,11 +268,9 @@ export const useStore = create<EditorState>((set, get) => ({
   deselectAll: () => set({ selectedClipIds: [], selectedMarkerId: null, contextMenu: null }),
 
   updateClip: (id, updates) => set((state) => {
-    // If trackId is changing, we need to move the clip between arrays
     if (updates.trackId !== undefined) {
       const currentClip = get().getClip(id);
       if (!currentClip || currentClip.trackId === updates.trackId) {
-        // Simple update
         const newTracks = state.tracks.map(t => ({
           ...t,
           clips: t.clips.map(c => c.id === id ? { ...c, ...updates } : c)
@@ -285,7 +278,6 @@ export const useStore = create<EditorState>((set, get) => ({
         return { tracks: newTracks };
       } 
 
-      // Moving tracks
       let clipToMove: Clip | null = null;
       
       const tracksAfterRemove = state.tracks.map(t => {
@@ -311,7 +303,6 @@ export const useStore = create<EditorState>((set, get) => ({
       return { tracks: tracksAfterAdd };
     }
 
-    // Standard in-place update
     const newTracks = state.tracks.map(t => ({
       ...t,
       clips: t.clips.map(c => c.id === id ? { ...c, ...updates } : c)
@@ -324,9 +315,7 @@ export const useStore = create<EditorState>((set, get) => ({
     if (selectedClipIds.length === 0) return {};
 
     let newTracks = [...state.tracks];
-    let newSelection: string[] = [];
 
-    // Process all selected clips
     selectedClipIds.forEach(clipId => {
         newTracks = newTracks.map(track => {
             const clipIndex = track.clips.findIndex(c => c.id === clipId);
@@ -334,7 +323,6 @@ export const useStore = create<EditorState>((set, get) => ({
       
             const clip = track.clips[clipIndex];
       
-            // Validate cut point
             if (currentTime <= clip.startTime + 0.1 || currentTime >= clip.startTime + clip.duration - 0.1) {
               return track;
             }
@@ -347,8 +335,6 @@ export const useStore = create<EditorState>((set, get) => ({
               startTime: currentTime,
               startOffset: clip.startOffset + splitDelta,
               duration: clip.duration - splitDelta,
-              // Keep groupId if present, so split parts stay grouped? 
-              // Usually split parts stay in the group.
               groupId: clip.groupId 
             };
       
@@ -361,8 +347,6 @@ export const useStore = create<EditorState>((set, get) => ({
             newClips[clipIndex] = updatedOriginalClip;
             newClips.splice(clipIndex + 1, 0, newClip);
             
-            // We lose selection of original, but maybe select both?
-            // Let's just deselect to avoid confusion or keep logic simple
             return { ...track, clips: newClips };
         });
     });
@@ -391,7 +375,6 @@ export const useStore = create<EditorState>((set, get) => ({
       const newSelection: string[] = [];
 
       state.selectedClipIds.forEach(id => {
-          // Locate clip
           for (let i = 0; i < newTracks.length; i++) {
               const track = newTracks[i];
               const clip = track.clips.find(c => c.id === id);
@@ -399,10 +382,9 @@ export const useStore = create<EditorState>((set, get) => ({
                   const newClip: Clip = {
                       ...clip,
                       id: crypto.randomUUID(),
-                      startTime: clip.startTime + clip.duration, // Place immediately after
-                      groupId: undefined // Don't auto-group duplicates with original
+                      startTime: clip.startTime + clip.duration,
+                      groupId: undefined 
                   };
-                  // Add to track
                   track.clips.push(newClip);
                   newSelection.push(newClip.id);
                   break; 
@@ -410,7 +392,6 @@ export const useStore = create<EditorState>((set, get) => ({
           }
       });
       
-      // Update tracks and select the new copies
       return { tracks: newTracks, selectedClipIds: newSelection };
   }),
 
@@ -474,6 +455,19 @@ export const useStore = create<EditorState>((set, get) => ({
 
   openContextMenu: (menu) => set({ contextMenu: menu }),
   closeContextMenu: () => set({ contextMenu: null }),
+  
+  // Export Actions
+  setExportModalOpen: (isOpen) => set({ isExportModalOpen: isOpen }),
+  startExport: (config) => set((state) => ({ 
+      exportConfig: { ...state.exportConfig, ...config, isExporting: true, progress: 0 },
+      isPlaying: false // Stop playback
+  })),
+  updateExportProgress: (progress) => set((state) => ({
+      exportConfig: { ...state.exportConfig, progress }
+  })),
+  finishExport: () => set((state) => ({
+      exportConfig: { ...state.exportConfig, isExporting: false, progress: 100 }
+  })),
 
   getClip: (id) => {
     const state = get();

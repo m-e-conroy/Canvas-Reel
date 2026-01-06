@@ -1,10 +1,21 @@
 
 import React, { useEffect } from 'react';
 import { useStore } from '../../store/useStore';
-import { Play, Pause, SkipBack, SkipForward, MonitorUp } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, MonitorUp, Images } from 'lucide-react';
 
 export const PlayerControls: React.FC = () => {
-  const { isPlaying, setIsPlaying, currentTime, setCurrentTime, duration, splitClip, removeSelectedClips, selectedClipIds, addMarker } = useStore();
+  const { 
+    isPlaying, 
+    setIsPlaying, 
+    currentTime, 
+    setCurrentTime, 
+    duration, 
+    splitClip, 
+    removeSelectedClips, 
+    selectedClipIds, 
+    addMarker,
+    setExportModalOpen 
+  } = useStore();
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -86,7 +97,15 @@ export const PlayerControls: React.FC = () => {
       </div>
 
       {/* Right: Export */}
-      <div className="flex-1 flex justify-end min-w-0">
+      <div className="flex-1 flex justify-end min-w-0 gap-2">
+        <button 
+            onClick={() => setExportModalOpen(true)}
+            className="flex items-center gap-2 px-3 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-bold uppercase rounded border border-gray-700 transition-colors whitespace-nowrap"
+            title="Export Frames"
+        >
+            <Images className="w-4 h-4" />
+        </button>
+
         <button 
             onClick={handleExport}
             className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-blue-400 text-xs font-bold uppercase rounded border border-gray-700 transition-colors whitespace-nowrap"

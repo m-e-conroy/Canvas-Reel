@@ -126,3 +126,12 @@ export interface ProjectState {
   zoom: number; // Pixels per second
   selectedClipIds: string[];
 }
+
+export interface ExportConfig {
+    startTime: number;
+    endTime: number;
+    fps: number;
+    format: 'png' | 'jpeg';
+    isExporting: boolean; // True when process is running
+    progress: number; // 0-100
+}

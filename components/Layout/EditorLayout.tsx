@@ -7,6 +7,7 @@ import { PlayerControls } from '../Player/PlayerControls';
 import { Timeline } from '../Timeline/Timeline';
 import { Inspector } from '../Inspector/Inspector';
 import { ContextMenu } from '../UI/ContextMenu';
+import { ExportModal } from '../Modals/ExportModal';
 import { Film, MonitorPlay, Scissors, Trash2, ZoomIn, ZoomOut, Copy, Group, Ungroup, Link, Unlink, Flag } from 'lucide-react';
 import { useStore } from '../../store/useStore';
 
@@ -42,6 +43,8 @@ export const EditorLayout: React.FC = () => {
   return (
     <div className="flex flex-col h-screen w-full bg-[#0f0f0f] text-gray-200 overflow-hidden" onContextMenu={(e) => e.preventDefault()}>
       <ContextMenu />
+      <ExportModal />
+      
       {/* Top Section: Assets & Player & Inspector */}
       <div className="flex flex-1 min-h-0">
         
